@@ -51,38 +51,26 @@ int HBICallback(
     int,
     unsigned char eventId,
     void* pvParam1,
-    int,
+    int nParam2,
     int,
     int
 )
 {
-        // statusの初期値
-    int status = 0;
-    if (pvParam1 != nullptr) {
-        status = reinterpret_cast<intptr_t>(pvParam1);
-    }
-    std::cout << "[Callback] eventId=" << static_cast<int>(eventId)
-        << ", status=" << status << std::endl;
-    if (eventId == ECALLBACK_TYPE_FPD_STATUS)
-    {
-        if (pvParam1 == nullptr && g_connected == false)
-        {
-            int status = *reinterpret_cast<int*>(&eventId);
-        }
-    }
+    printf("    Event ID: 0x%02X, Param2: %d\n", eventId, nParam2);
 
     if (eventId == ECALLBACK_TYPE_FPD_STATUS)
     {
-        int status = reinterpret_cast<int>(pvParam1);
+        int status = nParam2;
         if (status == 100)
         {
-			printf("Detector connected\n");
+			printf("        Detector connected\n");
             g_connected = true;
         }
     }
 
     if (eventId == ECALLBACK_TYPE_SINGLE_IMAGE)
     {
+		std::cout << "    Received single image data" << std::endl;
         // 実際の構造体名は HbiType.h に定義されているものを使用
         IMAGE_DATA_ST img;
 		std::memcpy(&img, pvParam1, sizeof(IMAGE_DATA_ST));
@@ -105,6 +93,7 @@ int HBICallback(
 
 int main()
 {
+
     void* hFpd = HBI_Init(0);
     if (!hFpd)
     {
@@ -154,9 +143,9 @@ int main()
 
 
     std::cout
-        << "width=" << g_imgProp.nwidth << "\n"
-        << "height=" << g_imgProp.nheight << "\n"
-        << "databit=" << g_imgProp.ndatabit << "\n"
+        << "  width=" << g_imgProp.nwidth << "\n"
+        << "  height=" << g_imgProp.nheight << "\n"
+        << "  databit=" << g_imgProp.ndatabit << "\n"
         << std::endl;
 
     size_t pixelCount =
@@ -177,8 +166,9 @@ int main()
         );
     }
 
+
     // 16bit RAW 保存
-    std::string strSaveFilePath = "D:\\__SVN\\taimlab\\trunk\\CapturerByHBI\\data\\Test_SingleImage.tif";
+    std::string strSaveFilePath = "D:\\github\\Temp\\CapturerByHBI\\CapturerByHBI\\data\\Test_1Frame.tif";
     SaveAsTiff(strSaveFilePath, g_imageBuffer, g_imgProp.nwidth, g_imgProp.nheight);
 
     HBI_Destroy(hFpd);

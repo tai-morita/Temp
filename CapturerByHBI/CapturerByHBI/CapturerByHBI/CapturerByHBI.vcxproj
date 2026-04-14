@@ -119,7 +119,7 @@
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <ShowIncludes>true</ShowIncludes>
-      <AdditionalIncludeDirectories>D:\__SVN\taimlab\trunk\Common\HBI_DLL\INCLUDES;D:\__SVN\taimlab\trunk\Common;D:\__SVN\taimlab\trunk</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>D:\github\Temp\CapturerByHBI\Common\HBI_DLL\INCLUDES;D:\github\Temp\CapturerByHBI\Common;D:\github\Temp\CapturerByHBI</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
