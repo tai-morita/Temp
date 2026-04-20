@@ -1,3 +1,7 @@
+#include <windows.h>
+#include <winnt.h>
+PCONTEXT __pctx_probe = nullptr;
+
 #include <iostream>
 #include <vector>
 #include <fstream>
@@ -5,22 +9,27 @@
 #include <atomic>
 #include <cstring>
 #include <tiffio.h>
+#include <numeric>
+#include <string>
+
+#include "../BigTIFF/BigTIFF.h"
+#include "..\CTiff\Tiff.h"
+#include "../Common/Sprintf.h"
 
 #include "HbiFpd.h"
 #include "HbiType.h"
 #include "HbiError.h"
-#include <string>
+
+using namespace std;
 
 static std::atomic<bool> g_connected{ false };
 static std::atomic<bool> g_imageReady{ false };
-
 static IMAGE_PROPERTY g_imgProp;
-static std::vector<uint16_t> g_imageBuffer;
 static FPD_AQC_MODE g_aqcMode;
-
 static COMM_CFG g_commCfg;
 
-void SaveAsTiff(const std::string& filename, const std::vector<uint16_t>& buffer, unsigned int width, unsigned int height)
+/*
+void SaveAsTiff(const std::wstring& filename, const std::vector<uint16_t>& buffer, unsigned int width, unsigned int height)
 {
     TIFF* tif = TIFFOpen(filename.c_str(), "w");
     if (!tif) {
@@ -43,9 +52,36 @@ void SaveAsTiff(const std::string& filename, const std::vector<uint16_t>& buffer
     }
 
     TIFFClose(tif);
+}*/
+
+//static std::vector<uint16_t> AquisitionSingleFrame(void* pvParam1)  
+void AquisitionSingleFrame(void* pvParam1)
+{  
+   static std::vector<uint16_t> vecimageBuffer;  
+
+   std::cout << "    Received single image data" << std::endl;  
+   IMAGE_DATA_ST img;  
+   std::memcpy(&img, pvParam1, sizeof(IMAGE_DATA_ST));  
+
+   size_t pixelCount =  
+       static_cast<size_t>(g_imgProp.nwidth) *  
+       static_cast<size_t>(g_imgProp.nheight);  
+
+   vecimageBuffer.resize(pixelCount); // Ensure the buffer is resized before copying data  
+
+   std::memcpy(  
+       vecimageBuffer.data(),  
+       img.databuff,  
+       pixelCount * sizeof(uint16_t)  
+   );  
+
+   std::cout << "Mean pixel value: " << std::accumulate(vecimageBuffer.begin(), vecimageBuffer.end(), 0.0) / pixelCount << std::endl;  
+
+   g_imageReady = true;  
+
+   //return vecimageBuffer; // Return the vector directly  
 }
 
-// コールバック関数
 int HBICallback(
     void*,
     int,
@@ -70,22 +106,12 @@ int HBICallback(
 
     if (eventId == ECALLBACK_TYPE_SINGLE_IMAGE)
     {
-		std::cout << "    Received single image data" << std::endl;
-        // 実際の構造体名は HbiType.h に定義されているものを使用
-        IMAGE_DATA_ST img;
-		std::memcpy(&img, pvParam1, sizeof(IMAGE_DATA_ST));
-
-        size_t pixelCount =
-            static_cast<size_t>(g_imgProp.nwidth) *
-            static_cast<size_t>(g_imgProp.nheight);
-
-        std::memcpy(
-            g_imageBuffer.data(),
-            img.databuff,
-            pixelCount * sizeof(uint16_t)
-        );
-
-        g_imageReady = true;
+		AquisitionSingleFrame(pvParam1);
+    }
+    if (eventId == ECALLBACK_TYPE_MULTIPLE_IMAGE)
+    {
+		std::cout << "    Received multiple image data, frame id: " << nParam2 << std::endl;
+        AquisitionSingleFrame(pvParam1);
     }
 
     return 1;
@@ -132,7 +158,6 @@ int main()
     }
 
 
-    // 画像プロパティ取得
     ret = HBI_GetImageProperty(hFpd, &g_imgProp);
     if (ret != 0)
     {
@@ -148,15 +173,37 @@ int main()
         << "  databit=" << g_imgProp.ndatabit << "\n"
         << std::endl;
 
-    size_t pixelCount =
-        static_cast<size_t>(g_imgProp.nwidth) *
-        static_cast<size_t>(g_imgProp.nheight);
 
-    g_imageBuffer.resize(pixelCount);
 
-    // 単フレーム撮影
-    HBI_SinglePrepare(hFpd);
-    HBI_SingleAcquisition(hFpd, g_aqcMode);
+    int nGainLevel = 2; // 1.2PC
+    HBI_SetPGALevel(hFpd, nGainLevel);
+
+	CArray2D<unsigned short> a2dImage(g_imgProp.nwidth, g_imgProp.nheight);
+
+    std::wstring strSaveFilePath = L"D:\\github\\Temp\\CapturerByHBI\\CapturerByHBI\\data\\Test_MultiFrame.tif";
+    CBigTIFF tiffOut;
+	tiffOut.OpenFileToWrite(strSaveFilePath);
+
+
+    if (false) {
+        HBI_SinglePrepare(hFpd);
+        HBI_SingleAcquisition(hFpd, g_aqcMode);
+    }
+	else {
+        g_aqcMode.eAqccmd = LIVE_ACQ_DEFAULT_TYPE;
+        HBI_LiveAcquisition(hFpd, g_aqcMode);
+
+        /*
+        std::this_thread::sleep_for(
+            std::chrono::seconds(1)
+        );
+        */
+
+        HBI_StopAcquisition(hFpd);
+		std::cout << "Stopped acquisition\n";
+		return 0;
+
+	}
 
 
     while (!g_imageReady)
@@ -167,9 +214,7 @@ int main()
     }
 
 
-    // 16bit RAW 保存
-    std::string strSaveFilePath = "D:\\github\\Temp\\CapturerByHBI\\CapturerByHBI\\data\\Test_1Frame.tif";
-    SaveAsTiff(strSaveFilePath, g_imageBuffer, g_imgProp.nwidth, g_imgProp.nheight);
+    //SaveAsTiff(strSaveFilePath, g_imageBuffer, g_imgProp.nwidth, g_imgProp.nheight);
 
     HBI_Destroy(hFpd);
 
