@@ -12,10 +12,11 @@ PCONTEXT __pctx_probe = nullptr;
 #include <numeric>
 #include <string>
 
-#include "../BigTIFF/BigTIFF.h"
-#include "..\CTiff\Tiff.h"
-#include "../Common/Sprintf.h"
-
+/*
+#include "../../BigTIFF/BigTIFF.h"
+#include "../..\CTiff\Tiff.h"
+#include "../../Common/Sprintf.h"
+*/
 #include "HbiFpd.h"
 #include "HbiType.h"
 #include "HbiError.h"
@@ -27,9 +28,9 @@ static std::atomic<bool> g_imageReady{ false };
 static IMAGE_PROPERTY g_imgProp;
 static FPD_AQC_MODE g_aqcMode;
 static COMM_CFG g_commCfg;
+static std::vector<uint16_t> g_imageBuffer;
 
-/*
-void SaveAsTiff(const std::wstring& filename, const std::vector<uint16_t>& buffer, unsigned int width, unsigned int height)
+void SaveAsTiff(const std::string& filename, const std::vector<uint16_t>& buffer, unsigned int width, unsigned int height)
 {
     TIFF* tif = TIFFOpen(filename.c_str(), "w");
     if (!tif) {
@@ -52,11 +53,10 @@ void SaveAsTiff(const std::wstring& filename, const std::vector<uint16_t>& buffe
     }
 
     TIFFClose(tif);
-}*/
+}
 
-//static std::vector<uint16_t> AquisitionSingleFrame(void* pvParam1)  
 void AquisitionSingleFrame(void* pvParam1)
-{  
+{
    static std::vector<uint16_t> vecimageBuffer;  
 
    std::cout << "    Received single image data" << std::endl;  
@@ -67,15 +67,15 @@ void AquisitionSingleFrame(void* pvParam1)
        static_cast<size_t>(g_imgProp.nwidth) *  
        static_cast<size_t>(g_imgProp.nheight);  
 
-   vecimageBuffer.resize(pixelCount); // Ensure the buffer is resized before copying data  
+   g_imageBuffer.resize(pixelCount); // Ensure the buffer is resized before copying data  
 
    std::memcpy(  
-       vecimageBuffer.data(),  
+       g_imageBuffer.data(),
        img.databuff,  
        pixelCount * sizeof(uint16_t)  
    );  
 
-   std::cout << "Mean pixel value: " << std::accumulate(vecimageBuffer.begin(), vecimageBuffer.end(), 0.0) / pixelCount << std::endl;  
+   std::cout << "Mean pixel value: " << std::accumulate(g_imageBuffer.begin(), g_imageBuffer.end(), 0.0) / pixelCount << std::endl;
 
    g_imageReady = true;  
 
@@ -178,14 +178,14 @@ int main()
     int nGainLevel = 2; // 1.2PC
     HBI_SetPGALevel(hFpd, nGainLevel);
 
-	CArray2D<unsigned short> a2dImage(g_imgProp.nwidth, g_imgProp.nheight);
+	//CArray2D<unsigned short> a2dImage(g_imgProp.nwidth, g_imgProp.nheight);
 
-    std::wstring strSaveFilePath = L"D:\\github\\Temp\\CapturerByHBI\\CapturerByHBI\\data\\Test_MultiFrame.tif";
-    CBigTIFF tiffOut;
-	tiffOut.OpenFileToWrite(strSaveFilePath);
+    //std::wstring strSaveFilePath = L"D:\\github\\Temp\\CapturerByHBI\\CapturerByHBI\\data\\Test_MultiFrame.tif";
+    //CBigTIFF tiffOut;
+	//tiffOut.OpenFileToWrite(strSaveFilePath);
 
 
-    if (false) {
+    if (true) {
         HBI_SinglePrepare(hFpd);
         HBI_SingleAcquisition(hFpd, g_aqcMode);
     }
@@ -213,8 +213,9 @@ int main()
         );
     }
 
+    std::string strSaveFilePath = "D:\\github\\CapturerByHBI\\CapturerByHBI\\data\\Test_1Frame_2.tif";
 
-    //SaveAsTiff(strSaveFilePath, g_imageBuffer, g_imgProp.nwidth, g_imgProp.nheight);
+    SaveAsTiff(strSaveFilePath, g_imageBuffer, g_imgProp.nwidth, g_imgProp.nheight);
 
     HBI_Destroy(hFpd);
 
