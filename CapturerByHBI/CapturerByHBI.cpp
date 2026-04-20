@@ -23,12 +23,26 @@ PCONTEXT __pctx_probe = nullptr;
 
 using namespace std;
 
+// Parameter setting
+int FRAMECOUNT = 100;
+
+int GAINLEVEL = 2; // 1.2PC
+int EXPTIME_milli = 33; // 33ms
+int EXPTIME_micro = 333; // 333us -> 合計で33.333ms = 1/30s: 30fps
+
 static std::atomic<bool> g_connected{ false };
 static std::atomic<bool> g_imageReady{ false };
 static IMAGE_PROPERTY g_imgProp;
 static FPD_AQC_MODE g_aqcMode;
 static COMM_CFG g_commCfg;
-static std::vector<uint16_t> g_imageBuffer;
+static std::vector<uint16_t> g_imageBuffer; // 最終の画像データを保存するグローバルバッファ
+
+static std::int16_t g_iFrameCounter = 0;
+static std::atomic<bool> g_CaptureFlag{ false };
+
+size_t g_framePixelCount;
+size_t g_totalPixelCount;
+
 
 void SaveAsTiff(const std::string& filename, const std::vector<uint16_t>& buffer, unsigned int width, unsigned int height)
 {
@@ -55,11 +69,70 @@ void SaveAsTiff(const std::string& filename, const std::vector<uint16_t>& buffer
     TIFFClose(tif);
 }
 
+
+void SaveAsMultiFrameTiff(
+    const std::string& filename,
+    const std::vector<uint16_t>& buffer,
+    unsigned int width,
+    unsigned int height,
+    unsigned int frameCount
+)
+{
+	std::cout << "Saving multi-frame TIFF: " << filename << "\n";
+    if (width == 0 || height == 0 || frameCount == 0) {
+        std::cerr << "Invalid image size or frame count\n";
+        return;
+    }
+
+    const size_t framePixelCount = static_cast<size_t>(width) * static_cast<size_t>(height);
+    const size_t requiredPixelCount = framePixelCount * static_cast<size_t>(frameCount);
+    if (buffer.size() < requiredPixelCount) {
+        std::cerr << "Buffer size is smaller than required for requested frame count\n";
+        return;
+    }
+
+    TIFF* tif = TIFFOpen(filename.c_str(), "w");
+    if (!tif) {
+        std::cerr << "TIFFOpen failed\n";
+        return;
+    }
+
+    for (uint32_t frame = 0; frame < frameCount; ++frame) {
+        TIFFSetField(tif, TIFFTAG_IMAGEWIDTH, width);
+        TIFFSetField(tif, TIFFTAG_IMAGELENGTH, height);
+        TIFFSetField(tif, TIFFTAG_BITSPERSAMPLE, 16);
+        TIFFSetField(tif, TIFFTAG_SAMPLESPERPIXEL, 1);
+        TIFFSetField(tif, TIFFTAG_ROWSPERSTRIP, height);
+        TIFFSetField(tif, TIFFTAG_COMPRESSION, COMPRESSION_NONE);
+        TIFFSetField(tif, TIFFTAG_PHOTOMETRIC, PHOTOMETRIC_MINISBLACK);
+        TIFFSetField(tif, TIFFTAG_PLANARCONFIG, PLANARCONFIG_CONTIG);
+        TIFFSetField(tif, TIFFTAG_SUBFILETYPE, 0);
+        TIFFSetField(tif, TIFFTAG_PAGENUMBER, frame, frameCount);
+
+        const size_t frameOffset = static_cast<size_t>(frame) * framePixelCount;
+        for (uint32_t row = 0; row < height; ++row) {
+            const uint16_t* rowPtr = &buffer[frameOffset + static_cast<size_t>(row) * width];
+            if (TIFFWriteScanline(tif, (void*)rowPtr, row, 0) < 0) {
+                std::cerr << "TIFFWriteScanline failed at frame " << frame << ", row " << row << "\n";
+                TIFFClose(tif);
+                return;
+            }
+        }
+
+        if (!TIFFWriteDirectory(tif)) {
+            std::cerr << "TIFFWriteDirectory failed at frame " << frame << "\n";
+            TIFFClose(tif);
+            return;
+        }
+    }
+
+    TIFFClose(tif);
+}
+
 void AquisitionSingleFrame(void* pvParam1)
 {
-   static std::vector<uint16_t> vecimageBuffer;  
+   static std::vector<uint16_t> vecimageBuffer;  // こいつはECALLBACK_TYPE_MULTIPLE_IMAGEで取得するときのバッファ
 
-   std::cout << "    Received single image data" << std::endl;  
    IMAGE_DATA_ST img;  
    std::memcpy(&img, pvParam1, sizeof(IMAGE_DATA_ST));  
 
@@ -75,11 +148,30 @@ void AquisitionSingleFrame(void* pvParam1)
        pixelCount * sizeof(uint16_t)  
    );  
 
-   std::cout << "Mean pixel value: " << std::accumulate(g_imageBuffer.begin(), g_imageBuffer.end(), 0.0) / pixelCount << std::endl;
-
    g_imageReady = true;  
+}
 
-   //return vecimageBuffer; // Return the vector directly  
+void AquisitionMultiFrame(void* pvParam1, int iframePixelCount)
+{
+    size_t offset = g_iFrameCounter * iframePixelCount;
+    static std::vector<uint16_t> vecimageBuffer;  // こいつはECALLBACK_TYPE_MULTIPLE_IMAGEで取得するときのバッファ
+
+    IMAGE_DATA_ST img;
+    std::memcpy(&img, pvParam1, sizeof(IMAGE_DATA_ST));
+
+    /*
+	std::cout << "pvParam1: " << pvParam1 << std::endl;
+    std::cout << "g_imageBuffer.data() + offset: " << g_imageBuffer.data() + offset << std::endl;
+    std::cout << "img.databuff: " << img.databuff << std::endl;
+    std::cout << "iframePixelCount * sizeof(uint16_t): " << iframePixelCount * sizeof(uint16_t) << std::endl;
+    */
+    std::memcpy(
+        g_imageBuffer.data() + offset,
+        img.databuff,
+        iframePixelCount * sizeof(uint16_t)
+    );
+
+    g_imageReady = true;
 }
 
 int HBICallback(
@@ -92,14 +184,14 @@ int HBICallback(
     int
 )
 {
-    printf("    Event ID: 0x%02X, Param2: %d\n", eventId, nParam2);
+    //printf("    Event ID: 0x%02X, Param2: %d\n", eventId, nParam2);
 
     if (eventId == ECALLBACK_TYPE_FPD_STATUS)
     {
         int status = nParam2;
         if (status == 100)
         {
-			printf("        Detector connected\n");
+			//printf("        Detector connected\n");
             g_connected = true;
         }
     }
@@ -110,8 +202,13 @@ int HBICallback(
     }
     if (eventId == ECALLBACK_TYPE_MULTIPLE_IMAGE)
     {
-		std::cout << "    Received multiple image data, frame id: " << nParam2 << std::endl;
-        AquisitionSingleFrame(pvParam1);
+		if (g_iFrameCounter >= FRAMECOUNT) {
+            g_CaptureFlag = true;
+			return 1;
+		}
+        AquisitionMultiFrame(pvParam1, g_framePixelCount);
+        g_iFrameCounter++;
+		std::cout << "    Received multiple image data, frame id: " << g_iFrameCounter << std::endl;
     }
 
     return 1;
@@ -173,10 +270,15 @@ int main()
         << "  databit=" << g_imgProp.ndatabit << "\n"
         << std::endl;
 
+    // パラメータの設定
+    HBI_MSetPGALevel(hFpd, GAINLEVEL);
+	HBI_MSetFpsOfTime(hFpd, EXPTIME_milli, EXPTIME_micro);
 
+	// マルチフレーム取得のためのバッファを確保
+    g_framePixelCount = g_imgProp.nwidth * g_imgProp.nheight;
+    g_totalPixelCount = FRAMECOUNT * g_framePixelCount;
 
-    int nGainLevel = 2; // 1.2PC
-    HBI_SetPGALevel(hFpd, nGainLevel);
+    g_imageBuffer.resize(g_totalPixelCount);
 
 	//CArray2D<unsigned short> a2dImage(g_imgProp.nwidth, g_imgProp.nheight);
 
@@ -185,7 +287,7 @@ int main()
 	//tiffOut.OpenFileToWrite(strSaveFilePath);
 
 
-    if (true) {
+    if (false) {
         HBI_SinglePrepare(hFpd);
         HBI_SingleAcquisition(hFpd, g_aqcMode);
     }
@@ -193,29 +295,33 @@ int main()
         g_aqcMode.eAqccmd = LIVE_ACQ_DEFAULT_TYPE;
         HBI_LiveAcquisition(hFpd, g_aqcMode);
 
-        /*
-        std::this_thread::sleep_for(
-            std::chrono::seconds(1)
-        );
-        */
+        while (!g_CaptureFlag)
+        {
+		    std::this_thread::sleep_for(
+			    std::chrono::milliseconds(50)
+		    );
+        }
+		bool flag_stop = false;
+        while(g_iFrameCounter >= FRAMECOUNT && !flag_stop){
+            HBI_StopAcquisition(hFpd);
+            std::cout << "Stopped acquisition" << std::endl;
+			flag_stop = true;
+        }
 
-        HBI_StopAcquisition(hFpd);
-		std::cout << "Stopped acquisition\n";
-		return 0;
-
-	}
+   	}
 
 
-    while (!g_imageReady)
-    {
-        std::this_thread::sleep_for(
-            std::chrono::milliseconds(10)
-        );
-    }
 
     std::string strSaveFilePath = "D:\\github\\CapturerByHBI\\CapturerByHBI\\data\\Test_1Frame_2.tif";
 
-    SaveAsTiff(strSaveFilePath, g_imageBuffer, g_imgProp.nwidth, g_imgProp.nheight);
+    SaveAsMultiFrameTiff(
+        strSaveFilePath,
+        g_imageBuffer,
+        g_imgProp.nwidth,
+        g_imgProp.nheight,
+        FRAMECOUNT
+    );
+
 
     HBI_Destroy(hFpd);
 
