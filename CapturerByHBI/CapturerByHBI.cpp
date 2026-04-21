@@ -24,11 +24,11 @@ PCONTEXT __pctx_probe = nullptr;
 using namespace std;
 
 // Parameter setting
-int FRAMECOUNT = 100;
+constexpr int FRAMECOUNT = 100;
 
-int GAINLEVEL = 2; // 1.2PC
-int EXPTIME_milli = 33; // 33ms
-int EXPTIME_micro = 333; // 333us -> 合計で33.333ms = 1/30s: 30fps
+constexpr int GAINLEVEL = 2; // 1.2PC
+constexpr int EXPTIME_milli = 33; // 33ms
+constexpr int EXPTIME_micro = 333; // 333us -> 合計で33.333ms = 1/30s: 30fps
 
 static std::atomic<bool> g_connected{ false };
 static std::atomic<bool> g_imageReady{ false };
