@@ -7,6 +7,7 @@
 //  デバイスの情報を取得するクラス
 class HBIDeviceProperties
 {
+public:
 	static IMAGE_PROPERTY m_imgProp;
 	const void* m_hFpd;
 

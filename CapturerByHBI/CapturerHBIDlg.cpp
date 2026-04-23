@@ -1,6 +1,3 @@
-#include <windows.h>
-#include <winnt.h>
-PCONTEXT __pctx_probe = nullptr;
 
 #include <iostream>
 #include <vector>
@@ -22,6 +19,12 @@ PCONTEXT __pctx_probe = nullptr;
 #include "HbiError.h"
 
 #include "./HBIDeviceCtrl.h"
+IMAGE_PROPERTY HBIDeviceProperties::m_imgProp = {};
+IMAGE_PROPERTY CHBIDeviceCtrl::m_imgProp = {};
+FPD_AQC_MODE CHBIDeviceCtrl::m_aqcMode = {};
+IMAGE_DATA_ST CHBIDeviceCtrl::m_imgData = {};
+COMM_CFG CHBIDeviceCtrl::m_commCfg = {};
+std::vector<uint16_t> CHBIDeviceCtrl::m_vechbiimagebuffer = {};
 
 using namespace std;
 
@@ -86,17 +89,59 @@ void SaveAsMultiFrameTiff(
 
 int main()
 {
-	constexpr int FRAMECOUNT = 100;
+
 
 	CHBIDeviceCtrl cCHBIDeviceCtrl;
+	HBIDeviceProperties cHBIDeviceProperties;
 
     // initialize
-    cCHBIDeviceCtrl.Initialize();
+    bool result = false;
+    result = cCHBIDeviceCtrl.Initialize();
+    std::wcout << L"Initialize: " << (result ? L"Success" : L"Failed") << std::endl;
 
-    // コールバック関数の設定
     cCHBIDeviceCtrl.SetCallBackFun();
 
-    cCHBIDeviceCtrl.ConectJumbo();
+    result = cCHBIDeviceCtrl.ConectJumbo();
+    std::wcout << L"ConectJumbo: " << (result ? L"Success" : L"Failed") << std::endl;
 
-	cCHBIDeviceCtrl.SetImageBuffer(FRAMECOUNT);
+    if (!result) {
+		std::cerr << "Failed to connect to the device. Exiting.\n";
+		return -1;
+    }
+
+    result = cCHBIDeviceCtrl.UpdateProperties();
+    std::wcout << L"UpdateProperties: " << (result ? L"Success" : L"Failed") << std::endl;
+    if (!result) {
+        std::cerr << "Failed to get image property. Exiting.\n";
+        return -1;
+    }
+
+    cCHBIDeviceCtrl.SetImageBuffer(cCHBIDeviceCtrl.m_itotalCaptureFrame);
+
+	// Capture Start
+    cCHBIDeviceCtrl.SetCaptureParams(
+        cCHBIDeviceCtrl.kiGAINLEVEL,
+        cCHBIDeviceCtrl.kiEXPTIME_milli,
+        cCHBIDeviceCtrl.kiEXPTIME_micro
+    );
+    if (cCHBIDeviceCtrl.Capture()) {
+	    while (cCHBIDeviceCtrl.IsCapturering()) {
+		    std::this_thread::sleep_for(
+			    std::chrono::milliseconds(50)
+		    );
+        }
+		cCHBIDeviceCtrl.StopCapture();
+	}
+
+	cCHBIDeviceCtrl.Release();
+
+    // Save Image
+    std::string strSaveFilePath = "D:\\github\\CapturerByHBI\\CapturerByHBI\\data\\20260423_Test_100Frame.tif";
+    SaveAsMultiFrameTiff(
+        strSaveFilePath,
+        cCHBIDeviceCtrl.m_vechbiimagebuffer,
+		cHBIDeviceProperties.GetImageWidth(),
+		cHBIDeviceProperties.GetImageHeight(),
+        cCHBIDeviceCtrl.m_itotalCaptureFrame
+    );
 }
