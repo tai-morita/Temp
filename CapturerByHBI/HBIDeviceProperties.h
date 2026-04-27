@@ -5,10 +5,10 @@
 #include "HbiError.h"
 
 //  デバイスの情報を取得するクラス
-class HBIDeviceProperties
+class CHBIDeviceProperties
 {
 public:
-	static IMAGE_PROPERTY m_imgProp;
+	IMAGE_PROPERTY m_imgProp;
 	const void* m_hFpd;
 
 	// FPD の ID? を取得?

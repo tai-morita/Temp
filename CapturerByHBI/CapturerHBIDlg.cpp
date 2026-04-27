@@ -19,12 +19,7 @@
 #include "HbiError.h"
 
 #include "./HBIDeviceCtrl.h"
-IMAGE_PROPERTY HBIDeviceProperties::m_imgProp = {};
-IMAGE_PROPERTY CHBIDeviceCtrl::m_imgProp = {};
-FPD_AQC_MODE CHBIDeviceCtrl::m_aqcMode = {};
-IMAGE_DATA_ST CHBIDeviceCtrl::m_imgData = {};
-COMM_CFG CHBIDeviceCtrl::m_commCfg = {};
-std::vector<uint16_t> CHBIDeviceCtrl::m_vechbiimagebuffer = {};
+
 
 using namespace std;
 
@@ -38,6 +33,7 @@ void SaveAsMultiFrameTiff(
 {
     std::cout << "Saving multi-frame TIFF: " << filename << "\n";
     if (width == 0 || height == 0 || frameCount == 0) {
+		std::wcout << width << height << frameCount << std::endl;
         std::cerr << "Invalid image size or frame count\n";
         return;
     }
@@ -89,10 +85,23 @@ void SaveAsMultiFrameTiff(
 
 int main()
 {
+    constexpr char* kpcFPDIP = "192.168.10.40";
+    constexpr char* kpcPCIP  = "192.168.10.20";
+    constexpr unsigned short kusFPDPORT = 32897;
+    constexpr unsigned short kusPCPORT  = 32896;
 
+    constexpr int kiFRAMECOUNT    = 2;
+    constexpr int kiGAINLEVEL     = 2; // 1.2PC
+    constexpr int kiEXPTIME_milli = 2500; // 33ms
+    constexpr int kiEXPTIME_micro = 0; // 333us
+	constexpr int kiBinningType   = 1; // 1:1x1,2:2x2,3:3x3,4:4x4
+    constexpr int kiZoomLeft      = 0;
+    constexpr int kiZoomTop       = 0;
+	constexpr int kiZoomWidth     = 3072; // 0 means no zoom
+	constexpr int kiZoomHeight    = 3072; // 0 means no zoom
 
 	CHBIDeviceCtrl cCHBIDeviceCtrl;
-	HBIDeviceProperties cHBIDeviceProperties;
+	CHBIDeviceProperties cHBIDeviceProperties;
 
     // initialize
     bool result = false;
@@ -101,29 +110,36 @@ int main()
 
     cCHBIDeviceCtrl.SetCallBackFun();
 
-    result = cCHBIDeviceCtrl.ConectJumbo();
+    result = cCHBIDeviceCtrl.ConectJumbo(kpcFPDIP, kusFPDPORT, kpcPCIP, kusPCPORT);
     std::wcout << L"ConectJumbo: " << (result ? L"Success" : L"Failed") << std::endl;
-
+    cCHBIDeviceCtrl.GetFPDStatus();
     if (!result) {
 		std::cerr << "Failed to connect to the device. Exiting.\n";
 		return -1;
     }
 
+	// Capture Start
+    cCHBIDeviceCtrl.SetCaptureParams(
+        kiGAINLEVEL,
+        kiEXPTIME_milli,
+        kiEXPTIME_micro,
+        kiFRAMECOUNT,
+        kiBinningType,
+        kiZoomLeft, // ZoomLeft
+        kiZoomTop, // ZoomTop
+        kiZoomWidth, // ZoomWidth
+        kiZoomHeight // ZoomHeight
+    );
+    cCHBIDeviceCtrl.GetCaptureParams();
+
     result = cCHBIDeviceCtrl.UpdateProperties();
-    std::wcout << L"UpdateProperties: " << (result ? L"Success" : L"Failed") << std::endl;
     if (!result) {
         std::cerr << "Failed to get image property. Exiting.\n";
         return -1;
     }
 
-    cCHBIDeviceCtrl.SetImageBuffer(cCHBIDeviceCtrl.m_itotalCaptureFrame);
+    cCHBIDeviceCtrl.AllocateImageBuffer(kiFRAMECOUNT);
 
-	// Capture Start
-    cCHBIDeviceCtrl.SetCaptureParams(
-        cCHBIDeviceCtrl.kiGAINLEVEL,
-        cCHBIDeviceCtrl.kiEXPTIME_milli,
-        cCHBIDeviceCtrl.kiEXPTIME_micro
-    );
     if (cCHBIDeviceCtrl.Capture()) {
 	    while (cCHBIDeviceCtrl.IsCapturering()) {
 		    std::this_thread::sleep_for(
@@ -136,12 +152,13 @@ int main()
 	cCHBIDeviceCtrl.Release();
 
     // Save Image
-    std::string strSaveFilePath = "D:\\github\\CapturerByHBI\\CapturerByHBI\\data\\20260423_Test_100Frame.tif";
+    std::string strSaveFilePath = "D:\\github\\CapturerByHBI\\CapturerByHBI\\data\\Test.tif";
     SaveAsMultiFrameTiff(
         strSaveFilePath,
         cCHBIDeviceCtrl.m_vechbiimagebuffer,
-		cHBIDeviceProperties.GetImageWidth(),
-		cHBIDeviceProperties.GetImageHeight(),
-        cCHBIDeviceCtrl.m_itotalCaptureFrame
+        cCHBIDeviceCtrl.m_iimageWidth,
+        cCHBIDeviceCtrl.m_iimageHeight,
+        kiFRAMECOUNT
     );
+	std::wcout << L"Done.\n";
 }

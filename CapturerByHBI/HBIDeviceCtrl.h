@@ -15,32 +15,24 @@
 class CHBIDeviceCtrl  
 {  
 public:
-	static IMAGE_PROPERTY m_imgProp;  
-	static COMM_CFG       m_commCfg; // 通信の設定を保持する構造体  
-	static FPD_AQC_MODE m_aqcMode;
-	static IMAGE_DATA_ST m_imgData; // 画像取得時のデータを保存する構造体
+	IMAGE_PROPERTY m_imgProp;  
+	COMM_CFG       m_commCfg; // 通信の設定を保持する構造体  
+	FPD_AQC_MODE m_aqcMode;
+	IMAGE_DATA_ST m_imgData; // 画像取得時のデータを保存する構造体
+	CMOS_ZOOM_RECT m_zoomRect; // ズームモードの矩形を保存する構造体
+	FPD_MODE_LIST m_modelist; // モードリストを保存する構造体
+	FPD_MODE_DATA m_modedata; // モードデータを保存する構造体
 
 	void* m_hHBI;  
 	bool  m_bIsHBIInitialized;  
-	static std::vector<uint16_t> m_vechbiimagebuffer; // 最終の画像データを保存するバッファ
-
-	char* m_kcFPDIP = "192.168.10.40";
-	char* m_kcPCIP  = "192.168.10.20";
-	const unsigned short FPDPORT = 32897;
-	const unsigned short PCPORT  = 32896;
+	std::vector<uint16_t> m_vechbiimagebuffer; // 最終の画像データを保存するバッファ
 
 	bool m_bcapturing; // 画像取得中かどうかを示すフラグ
 	int m_iframeCounter; // 取得したフレーム数をカウントする変数
+	int m_itotalCaptureFrame; // 取得するフレームの総数
 
-	const int kiFRAMECOUNT = 100;
-	const int kiGAINLEVEL = 2; // 1.2PC
-	const int kiEXPTIME_milli = 33; // 33ms
-	const int kiEXPTIME_micro = 333; // 333us -> ���v��33.333ms = 1/30s: 30fps
-
-	int m_itotalCaptureFrame = kiFRAMECOUNT; // 取得するフレームの総数
-	int m_kiGAINLEVEL = kiGAINLEVEL; // 1.2PC
-	int m_kiEXPTIME_milli = kiEXPTIME_milli; // 33ms
-	int m_kiEXPTIME_micro = kiEXPTIME_micro; // 333us -> ���v��33.333ms = 1/30s: 30fps
+	int m_iimageWidth;
+	int m_iimageHeight;
 
 	// コンストラクタ  
 	CHBIDeviceCtrl()  
@@ -48,6 +40,9 @@ public:
 		, m_bIsHBIInitialized(false)  
 		, m_bcapturing(false)
 		, m_iframeCounter(0)
+		, m_itotalCaptureFrame(0)
+		, m_iimageWidth(2560)
+		, m_iimageHeight(2048)
 	{}  
 
 	bool UpdateProperties() {
@@ -55,46 +50,112 @@ public:
 			std::wcout << L"HBI is not initialized.\n";
 			return false;
 		}
-
 		int ret = HBI_GetImageProperty(m_hHBI, &m_imgProp);
+		m_iimageWidth = m_imgProp.nwidth;
+		m_iimageHeight = m_imgProp.nheight;
+		std::wcout << L"Image Properties:" << m_iimageWidth << L" x " << m_iimageHeight << std::endl;
+
 		if (ret != 0) {
 			std::wcout << L"HBI_GetImageProperty failed. ret=" << ret << L"\n";
 			return false;
 		}
-
-		// Keep property view class in sync with the latest device state.
-		HBIDeviceProperties::m_imgProp = m_imgProp;
 		return true;
 	}
 
-	void SetCaptureParams(int iGainType, int iExpMili, int iExpMicro) {
+	void SetCaptureParams(
+		int iGainType, 
+		int iExpMili, 
+		int iExpMicro, 
+		int itotalCaptureFrame,
+		int iBinningType,
+		int iZoomLeft=0,
+		int iZoomTop=0,
+		int iZoomWidth=0,
+		int iZoomHeight=0
+	) {
+		std::wcout << L"Setting capture parameters...\n";
+		std::wcout << L"  GainType: " << iGainType << L"\n";
+		std::wcout << L"  Binning Type: " << iBinningType << L"\n";
+		std::wcout << L"  Zoom Rect: Left=" << iZoomLeft << L", Top=" << iZoomTop << L", Width=" << iZoomWidth << L", Height=" << iZoomHeight << L"\n";
+		std::wcout << L"  Exposure Time: " << iExpMili << L" ms + " << iExpMicro << L" us\n";
 		if (!IsHBIInitialized()) {
 			std::wcout << L"HBI is not initialized.\n";
 			return;
 		}
-		int ret = HBI_MSetPGALevel(m_hHBI, iGainType);
-		if (ret != 0) {
-			std::wcout << L"HBI_MSetPGALevel failed. ret=" << ret << L"\n";
+		int iret;
+		iret = HBI_MSetPGALevel(m_hHBI, iGainType);
+		if (iret != 0) {
+			std::wcout << L"HBI_MSetPGALevel failed. iret=" << iret << L"\n";
 			return;
 		}
-		ret = HBI_MSetFpsOfTime(m_hHBI, iExpMili, iExpMicro);
-		if (ret != 0) {
-			std::wcout << L"HBI_MSetFpsOfTime failed. ret=" << ret << L"\n";
+		iret = HBI_MSetBinning(m_hHBI, iBinningType);
+		if (iret != 0) {
+			std::wcout << L"HBI_SetBinning failed. iret=" << iret << L"\n";
 			return;
 		}
+
+		m_zoomRect.uleft   = iZoomLeft;
+		m_zoomRect.utop    = iZoomTop;
+		m_zoomRect.uright  = m_zoomRect.uleft + iZoomWidth-1;
+		m_zoomRect.ubottom = m_zoomRect.utop + iZoomHeight-1;
+
+		std::wcout << L"  Zoom Rect Set To: Left=" << m_zoomRect.uleft << L", Top=" << m_zoomRect.utop << L", Right=" << m_zoomRect.uright << L", Bottom=" << m_zoomRect.ubottom << L"\n";
+		iret = HBI_MSetZoomModeRect(m_hHBI, m_zoomRect); // ズームモードの矩形を設定（例: 画像全体）
+		if (iret != 0) {
+			std::wcout << L"HBI_MSetZoomModeRect failed. iret=" << iret << L"\n";
+			return;
+		}
+		unsigned int uiZoomLeft, uiZoomTop, uiZoomWidth, uiZoomHeight;
+		HBI_GetCurZoomRect(m_hHBI, &uiZoomLeft, &uiZoomTop, &uiZoomWidth, &uiZoomHeight);
+		std::wcout << L"  Zoom Rect    : " << uiZoomLeft << L", " << uiZoomTop << L", " << uiZoomWidth << L", " << uiZoomHeight << L"\n";
+		iret = HBI_MSetFpsOfTime(m_hHBI, iExpMili, iExpMicro);
+		if (iret != 0) {
+			std::wcout << L"HBI_MSetFpsOfTime failed. iret=" << iret << L"\n";
+			return;
+		}
+
+		m_itotalCaptureFrame = itotalCaptureFrame; // 取得するフレームの総数を設定
 		double dExposureMs = static_cast<double>(iExpMili) + static_cast<double>(iExpMicro) / 1000.0;
 		double dFps = dExposureMs > 0.0 ? 1000.0 / dExposureMs : 0.0;
-		std::wcout << L"Capture parameters set: GainType =" << iGainType << L"\n";
-		std::wcout << L"Exposure Time =" << dExposureMs << L" ms\n";
-		std::wcout << L"FPS =" << dFps << L"\n";
+		/*
+		std::wcout << L"Capture parameters set:\n  Capture Frames = " << itotalCaptureFrame << L"\n";
+		std::wcout << L"  GainType = " << iGainType << L"\n";
+		std::wcout << L"  Exposure Time =" << dExposureMs << L" ms\n";
+		*/
+		std::wcout << L"  FPS =" << dFps << L"\n";
 		return;
+	}
+
+	void GetCaptureParams() {
+		std::wcout << L"Getting current capture parameters...\n";
+		std::wcout << L"  Gain Type    : " << HBI_GetPGALevel(m_hHBI) << L"\n";
+		std::wcout << L"  Exposure Time: " << L" " << L" ms\n";
+		unsigned int uiBinningTypeOut;
+		HBI_GetBinning(m_hHBI, &uiBinningTypeOut);
+		std::wcout << L"  Binning Type : " << uiBinningTypeOut << L"\n";
+		unsigned int uiZoomLeft, uiZoomTop, uiZoomWidth, uiZoomHeight;
+		HBI_GetCurZoomRect(m_hHBI, &uiZoomLeft, &uiZoomTop, &uiZoomWidth, &uiZoomHeight);
+		std::wcout << L"  Zoom Rect    : " << uiZoomLeft << L", " << uiZoomTop << L", " << uiZoomWidth << L", " << uiZoomHeight << L"\n";
+	}
+
+	void GetFPDStatus() {
+		// パネルの情報を取得する
+		if (m_bIsHBIInitialized) {
+			char cserialnumber[14] = { 0 };
+			int iret;
+			iret = HBI_GetFPDSerialNumber(m_hHBI, cserialnumber); // 配列のポインタを渡す
+			if (iret != 0) {
+				std::wcout << L"HBI_GetFPDSerialNumber failed. iret=" << iret << L"\n";
+			}
+			std::wcout << L"FPD Serial Number: " << cserialnumber << L"\n";
+		}
 	}
 
 	bool IsHBIInitialized() const {  
 		return m_bIsHBIInitialized;  
 	}  
 
-	bool Initialize() {  
+    bool Initialize() {  
 		if (IsHBIInitialized()) {  
 			std::wcout << L"HBI is already initialized.\n";
 			return false; // すでに初期化されている場合は、再度初期化しない  
@@ -110,40 +171,34 @@ public:
 			m_bIsHBIInitialized = true;
 		}
 		return m_bIsHBIInitialized;
-	}  
+    }
 
-	bool ConectJumbo() {  
+	bool ConectJumbo(char* pcFPDIP, unsigned short usFPDPORT, char* pcPCIP, unsigned short usPCPORT) {  
 		if (!IsHBIInitialized()) {  
 			return false; // HBI が初期化されていない場合は、接続できない  
 		}
 		std::wcout << L"Connecting to the device with the following settings:\n";
-		std::wcout << L"  FPD IP: " << m_kcFPDIP << L"\n";
-		std::wcout << L"  FPD Port: " << FPDPORT << L"\n";
-		std::wcout << L"  PC IP: " << m_kcPCIP << L"\n";
-		std::wcout << L"  PC Port: " << PCPORT << L"\n";
+		std::wcout << L"  FPD IP: " << pcFPDIP << L"\n";
+		std::wcout << L"  FPD Port: " << usFPDPORT << L"\n";
+		std::wcout << L"  PC IP: " << pcPCIP << L"\n";
+		std::wcout << L"  PC Port: " << usPCPORT << L"\n";
 		int ret = HBI_ConnectDetectorJumbo(  
 			m_hHBI,  
-			m_kcFPDIP, // FPD IP  
-			FPDPORT,   // FPD port  
-			m_kcPCIP,  // PC IP  
-			PCPORT,    // PC port  
+			pcFPDIP, // FPD IP  
+			usFPDPORT,   // FPD port  
+			pcPCIP,  // PC IP  
+			usPCPORT,    // PC port  
 			0  
 		);  
+
 		return ret == 0; // 接続に成功した場合は true を返す  
 	}
 
-	static std::vector<uint16_t> SetImageBuffer(int iframeCount) {
+	void AllocateImageBuffer(int iframeCount) {
 		// 画像バッファを設定する
-		/*
-		if (!IsHBIInitialized()) {
-			return {}; // HBI が初期化されていない場合は、空のベクターを返す
-		}
-		*/
-		int iImageWidth     = m_imgProp.nwidth;
-		int iImageHeight    = m_imgProp.nheight;
-		int totalPixelCount = static_cast<size_t>(iImageWidth) * static_cast<size_t>(iImageHeight) * static_cast<size_t>(iframeCount);
+		int totalPixelCount = static_cast<size_t>(m_iimageWidth) * static_cast<size_t>(m_iimageHeight) * static_cast<size_t>(iframeCount);
 		m_vechbiimagebuffer.resize(totalPixelCount); // バッファのサイズをフレーム数に応じて調整
-		return m_vechbiimagebuffer; // 画像バッファを返す
+		return;
 	}
 
 	// 画像取得開始
@@ -182,11 +237,14 @@ public:
 		}
 		std::wcout << L"    Received multiple image data, frame id: " << m_iframeCounter << std::endl;
 
-		int iframePixelCount = static_cast<size_t>(m_imgProp.nwidth) * static_cast<size_t>(m_imgProp.nheight);
+		int iframePixelCount = static_cast<size_t>(m_iimageWidth) * static_cast<size_t>(m_iimageHeight);
 
 		size_t offset = m_iframeCounter * iframePixelCount;
 
-		std::memcpy(&m_imgData, pvParam1, sizeof(IMAGE_DATA_ST));
+		std::memcpy(
+			&m_imgData,
+			pvParam1,
+			sizeof(IMAGE_DATA_ST));
 
 		memcpy_s(
 			m_vechbiimagebuffer.data() + offset,
@@ -222,6 +280,15 @@ public:
 		);
 	}
 
+	bool Release() {
+		if (IsCapturering()) {
+			std::wcout << L"Stopping capture before release...\n";
+			StopCapture();
+		}
+		HBI_Destroy(m_hHBI);
+		return true;
+	}
+
 	// インスタンス側の実処理
 	int OnHBICallback(
 		int ifpdId,
@@ -236,7 +303,7 @@ public:
 		(void)ievantParam2;
 		(void)ievantParam3;
 		(void)ievantParam4;
-		//printf("              Event ID: 0x%02X, Param2: %d\n", eventId, ievantParam2);
+		// printf("              Event ID: 0x%02X, Param2: %d\n", eventId, ievantParam2);
 		if (eventId == ECALLBACK_TYPE_MULTIPLE_IMAGE)
 		{
 			SaveBuffer(peventParam1);
@@ -249,14 +316,4 @@ public:
 	void SetCallBackFun() {
 		HBI_RegEventCallBackFun(m_hHBI, usrHBICallback, this);
 	}
-
-	bool Release() {
-		if (IsCapturering()) {
-			std::wcout << L"Stopping capture before release...\n";
-			StopCapture();
-		}
-		HBI_Destroy(m_hHBI);
-		return true;
-	}
-
 };
