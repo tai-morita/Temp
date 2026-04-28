@@ -8,6 +8,7 @@
 #include <tiffio.h>
 #include <numeric>
 #include <string>
+#include <nlohmann/json.hpp>
 
 /*
 #include "../../BigTIFF/BigTIFF.h"
@@ -83,29 +84,78 @@ void SaveAsMultiFrameTiff(
     TIFFClose(tif);
 }
 
+
+struct CaptureConfig {
+    std::string FPDIP;
+    std::string PCIP;
+    int FPDPORT;
+    int PCPORT;
+    int gainType = 0;
+    int expMili = 0;
+    int CaptureFrame = 0;
+    int binningType = 0;
+    int zoomWidth = 0;
+    int zoomHeight = 0; // 高さ方向のみ変えられる
+};
+
+bool LoadCaptureConfig(const std::wstring& path, CaptureConfig& cfg) {
+    std::ifstream ifs(path);
+    if (!ifs.is_open()) {
+        std::wcerr << L"Failed to open: " << path << std::endl;
+        return false;
+    }
+
+    try {
+        nlohmann::json j;
+        ifs >> j;
+
+        cfg.gainType     = j.value("gainType", 0);
+        cfg.expMili      = j.value("expMili", 0);
+        cfg.CaptureFrame = j.value("CaptureFrame", 0);
+        cfg.binningType  = j.value("binningType", 0);
+        cfg.zoomWidth    = j.value("zoomWidth", 0);
+        cfg.zoomHeight   = j.value("zoomHeight", 0);
+    }
+    catch (const std::exception& e) {
+        std::cerr << "JSON parse error: " << e.what() << std::endl;
+        return false;
+    }
+
+    return true;
+}
+
 int main()
 {
-    constexpr char* kpcFPDIP = "192.168.10.40";
-    constexpr char* kpcPCIP  = "192.168.10.20";
+	CaptureConfig cfg;
+    std::wstring strjsonFilePath = L"D:\\github\\CapturerByHBI\\CapturerByHBI\\CapturerByHBI\\DeviceParams.json";
+    LoadCaptureConfig(strjsonFilePath, cfg);
+
+    constexpr char* kpcFPDIP            = "192.168.10.40";
+    constexpr char* kpcPCIP             = "192.168.10.20";
     constexpr unsigned short kusFPDPORT = 32897;
     constexpr unsigned short kusPCPORT  = 32896;
 
-    constexpr int kiFRAMECOUNT    = 2;
-    constexpr int kiGAINLEVEL     = 2; // 1.2PC
-    constexpr int kiEXPTIME_milli = 2500; // 33ms
-    constexpr int kiEXPTIME_micro = 0; // 333us
-	constexpr int kiBinningType   = 1; // 1:1x1,2:2x2,3:3x3,4:4x4
-    constexpr int kiZoomLeft      = 0;
-    constexpr int kiZoomTop       = 0;
-	constexpr int kiZoomWidth     = 3072; // 0 means no zoom
-	constexpr int kiZoomHeight    = 3072; // 0 means no zoom
+    const int kiCAPTUREFRAME  = cfg.CaptureFrame; 
+	const int kiGAINLEVEL     = cfg.gainType;          // 1: 0.6, 2: 1.2PC, 3:  2.4PC, 4: 3.6PC, 5: 4.8PC, 6: 7.2PC, 8: LFW, 9: HFW, 10: 0.3PC, 11: 0.15PC
+    const int kiEXPTIME_milli = cfg.expMili;       
+	const int kiBinningType   = cfg.binningType;       // 1:1x1,2:2x2,3:3x3,4:4x4
+	// const int kiZoomWidth     = cfg.zoomWidth;         // 横方向のズームはできない
+	const int kiZoomHeight    = cfg.zoomHeight;        // 縦方向のズームサイズ
+    
+
+	if (kiZoomHeight % 2 != 0) {
+		std::cerr << "Zoom height must be a multiple of 2. Adjusting to nearest even number.\n";
+        return -1;
+	}
 
 	CHBIDeviceCtrl cCHBIDeviceCtrl;
-	CHBIDeviceProperties cHBIDeviceProperties;
 
     // initialize
     bool result = false;
+    cCHBIDeviceCtrl.Release();
+
     result = cCHBIDeviceCtrl.Initialize();
+
     std::wcout << L"Initialize: " << (result ? L"Success" : L"Failed") << std::endl;
 
     cCHBIDeviceCtrl.SetCallBackFun();
@@ -117,29 +167,24 @@ int main()
 		std::cerr << "Failed to connect to the device. Exiting.\n";
 		return -1;
     }
-
-	// Capture Start
+    
     cCHBIDeviceCtrl.SetCaptureParams(
         kiGAINLEVEL,
         kiEXPTIME_milli,
-        kiEXPTIME_micro,
-        kiFRAMECOUNT,
+        kiCAPTUREFRAME,
         kiBinningType,
-        kiZoomLeft, // ZoomLeft
-        kiZoomTop, // ZoomTop
-        kiZoomWidth, // ZoomWidth
-        kiZoomHeight // ZoomHeight
+        kiZoomHeight
     );
     cCHBIDeviceCtrl.GetCaptureParams();
-
     result = cCHBIDeviceCtrl.UpdateProperties();
     if (!result) {
         std::cerr << "Failed to get image property. Exiting.\n";
         return -1;
     }
 
-    cCHBIDeviceCtrl.AllocateImageBuffer(kiFRAMECOUNT);
+    cCHBIDeviceCtrl.AllocateImageBuffer(kiCAPTUREFRAME);
 
+    // Capture Start
     if (cCHBIDeviceCtrl.Capture()) {
 	    while (cCHBIDeviceCtrl.IsCapturering()) {
 		    std::this_thread::sleep_for(
@@ -153,12 +198,12 @@ int main()
 
     // Save Image
     std::string strSaveFilePath = "D:\\github\\CapturerByHBI\\CapturerByHBI\\data\\Test.tif";
-    SaveAsMultiFrameTiff(
+    SaveAsMultiFrameTiff(// get使ってアクセスしよう
         strSaveFilePath,
-        cCHBIDeviceCtrl.m_vechbiimagebuffer,
-        cCHBIDeviceCtrl.m_iimageWidth,
-        cCHBIDeviceCtrl.m_iimageHeight,
-        kiFRAMECOUNT
+        cCHBIDeviceCtrl.GetvecHBIimagebuffer(),
+        cCHBIDeviceCtrl.GetImageWidth(),
+        cCHBIDeviceCtrl.GetImageHeight(),
+        kiCAPTUREFRAME
     );
 	std::wcout << L"Done.\n";
 }

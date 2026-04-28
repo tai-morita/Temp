@@ -1,0 +1,14 @@
+{
+  "FPDIP": "192.168.10.40",
+  "PCIP": "192.168.10.20",
+  "FPDPORT": 32897,
+  "PCPORT": 32896,
+  "gainType": 2,
+  "expMili": 33,
+  "CaptureFrame": 600,
+  "binningType": 1,
+  "originalWidth": 3072,
+  "originalHeight": 3072,
+  "zoomWidth": 3072,
+  "zoomHeight": 1000
+}

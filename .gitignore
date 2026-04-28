@@ -35,7 +35,6 @@ CapturerByHBI/vcpkg_utils/
 *.gitignore
 *.gn
 *.gni
-*.hpp
 *.htm
 *.ico
 *.idb
@@ -43,7 +42,6 @@ CapturerByHBI/vcpkg_utils/
 *.inc
 *.iobj
 *.ipdb
-*.json
 *.lastbuildstate
 *.lib
 *.linux
