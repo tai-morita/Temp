@@ -86,16 +86,18 @@ void SaveAsMultiFrameTiff(
 
 
 struct CaptureConfig {
-    std::string FPDIP;
-    std::string PCIP;
-    int FPDPORT;
-    int PCPORT;
-    int gainType = 0;
-    int expMili = 0;
-    int CaptureFrame = 0;
-    int binningType = 0;
-    int zoomWidth = 0;
-    int zoomHeight = 0; // 高さ方向のみ変えられる
+    std::string m_FPDIP;
+    std::string m_PCIP;
+    int m_iFPDPORT;
+    int m_iPCORT;
+    int m_igainType       = 0;
+    int m_iexpMili        = 0;
+    int m_iCaptureFrame   = 0;
+    int m_ibinningType    = 0;
+	int m_ioriginalWidth  = 0;
+	int m_ioriginalHeight = 0;
+    int m_izoomWidth      = 0;
+    int m_izoomHeight     = 0; // 高さ方向のみ変えられる
 };
 
 bool LoadCaptureConfig(const std::wstring& path, CaptureConfig& cfg) {
@@ -109,12 +111,14 @@ bool LoadCaptureConfig(const std::wstring& path, CaptureConfig& cfg) {
         nlohmann::json j;
         ifs >> j;
 
-        cfg.gainType     = j.value("gainType", 0);
-        cfg.expMili      = j.value("expMili", 0);
-        cfg.CaptureFrame = j.value("CaptureFrame", 0);
-        cfg.binningType  = j.value("binningType", 0);
-        cfg.zoomWidth    = j.value("zoomWidth", 0);
-        cfg.zoomHeight   = j.value("zoomHeight", 0);
+        cfg.m_igainType       = j.value("gainType", 0);
+        cfg.m_iexpMili        = j.value("expMili", 0);
+        cfg.m_iCaptureFrame   = j.value("CaptureFrame", 0);
+        cfg.m_ibinningType    = j.value("binningType", 0);
+		cfg.m_ioriginalWidth  = j.value("originalWidth", 0);
+		cfg.m_ioriginalHeight = j.value("originalHeight", 0);
+        cfg.m_izoomWidth      = j.value("zoomWidth", 0);
+        cfg.m_izoomHeight     = j.value("zoomHeight", 0);
     }
     catch (const std::exception& e) {
         std::cerr << "JSON parse error: " << e.what() << std::endl;
@@ -130,17 +134,19 @@ int main()
     std::wstring strjsonFilePath = L"D:\\github\\CapturerByHBI\\CapturerByHBI\\CapturerByHBI\\DeviceParams.json";
     LoadCaptureConfig(strjsonFilePath, cfg);
 
-    constexpr char* kpcFPDIP            = "192.168.10.40";
-    constexpr char* kpcPCIP             = "192.168.10.20";
+    constexpr char* kpcm_FPDIP            = "192.168.10.40";
+    constexpr char* kpcm_PCIP             = "192.168.10.20";
     constexpr unsigned short kusFPDPORT = 32897;
     constexpr unsigned short kusPCPORT  = 32896;
 
-    const int kiCAPTUREFRAME  = cfg.CaptureFrame; 
-	const int kiGAINLEVEL     = cfg.gainType;          // 1: 0.6, 2: 1.2PC, 3:  2.4PC, 4: 3.6PC, 5: 4.8PC, 6: 7.2PC, 8: LFW, 9: HFW, 10: 0.3PC, 11: 0.15PC
-    const int kiEXPTIME_milli = cfg.expMili;       
-	const int kiBinningType   = cfg.binningType;       // 1:1x1,2:2x2,3:3x3,4:4x4
+    const int kiCAPTUREFRAME   = cfg.m_iCaptureFrame; 
+	const int kiGAINLEVEL      = cfg.m_igainType;          // 1: 0.6, 2: 1.2PC, 3:  2.4PC, 4: 3.6PC, 5: 4.8PC, 6: 7.2PC, 8: LFW, 9: HFW, 10: 0.3PC, 11: 0.15PC
+    const int kiEXPTIME_milli  = cfg.m_iexpMili;       
+	const int kiBinningType    = cfg.m_ibinningType;       // 1:1x1,2:2x2,3:3x3,4:4x4
+	const int kiOriginalWidth  = cfg.m_ioriginalWidth;       // 元の画像の幅
+	const int kiOriginalHeight = cfg.m_ioriginalHeight;      // 元の画像の高さ
 	// const int kiZoomWidth     = cfg.zoomWidth;         // 横方向のズームはできない
-	const int kiZoomHeight    = cfg.zoomHeight;        // 縦方向のズームサイズ
+	const int kiZoomHeight     = cfg.m_izoomHeight;        // 縦方向のズームサイズ
     
 
 	if (kiZoomHeight % 2 != 0) {
@@ -152,7 +158,6 @@ int main()
 
     // initialize
     bool result = false;
-    cCHBIDeviceCtrl.Release();
 
     result = cCHBIDeviceCtrl.Initialize();
 
@@ -160,21 +165,24 @@ int main()
 
     cCHBIDeviceCtrl.SetCallBackFun();
 
-    result = cCHBIDeviceCtrl.ConectJumbo(kpcFPDIP, kusFPDPORT, kpcPCIP, kusPCPORT);
+    result = cCHBIDeviceCtrl.ConectJumbo(kpcm_FPDIP, kusFPDPORT, kpcm_PCIP, kusPCPORT);
     std::wcout << L"ConectJumbo: " << (result ? L"Success" : L"Failed") << std::endl;
     cCHBIDeviceCtrl.GetFPDStatus();
     if (!result) {
 		std::cerr << "Failed to connect to the device. Exiting.\n";
 		return -1;
     }
-    
+
     cCHBIDeviceCtrl.SetCaptureParams(
         kiGAINLEVEL,
         kiEXPTIME_milli,
         kiCAPTUREFRAME,
         kiBinningType,
+        kiOriginalWidth,
+        kiOriginalHeight,
         kiZoomHeight
     );
+
     cCHBIDeviceCtrl.GetCaptureParams();
     result = cCHBIDeviceCtrl.UpdateProperties();
     if (!result) {
@@ -198,7 +206,7 @@ int main()
 
     // Save Image
     std::string strSaveFilePath = "D:\\github\\CapturerByHBI\\CapturerByHBI\\data\\Test.tif";
-    SaveAsMultiFrameTiff(// get使ってアクセスしよう
+    SaveAsMultiFrameTiff(
         strSaveFilePath,
         cCHBIDeviceCtrl.GetvecHBIimagebuffer(),
         cCHBIDeviceCtrl.GetImageWidth(),
