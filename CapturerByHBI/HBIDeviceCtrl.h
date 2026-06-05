@@ -1,9 +1,9 @@
-﻿using namespace std;
-
-#include <vector>
+﻿#include <vector>
 #include <string>
 #include <iostream>
 #include <cstring>
+#include <cctype>
+#include <algorithm>
 #include <iomanip>
 
 #include "HbiFpd.h"  
@@ -34,6 +34,36 @@ private:
 	int m_iimageHeight;
 
 public:
+	// コンストラクタ  
+	CHBIDeviceCtrl()
+		: m_hHBI(nullptr)
+		, m_bIsHBIInitialized(false)
+		, m_bIsCapturing(false)
+		, m_iFrame(0)
+		, m_iCaptureFrame(0)
+		, m_iimageWidth(0)
+		, m_iimageHeight(0)
+	{
+		std::memset(&m_modedata, 0, sizeof(m_modedata));
+		std::memset(&m_modelist, 0, sizeof(m_modelist));
+		std::memset(&m_zoomRect, 0, sizeof(m_zoomRect));
+	}
+
+	// デストラクタ
+	~CHBIDeviceCtrl()
+	{
+		if (IsCapturering()) {
+			std::wcout << L"Stopping capture before destruction...\n";
+			StopCapture();
+		}
+		if (IsHBIInitialized()) {
+			HBI_Destroy(m_hHBI);
+			m_bIsHBIInitialized = false;
+		}
+	}
+
+
+public:
 	// CapturerHBIDlg.cpp からアクセスするためのゲッターメソッド
 	std::vector<uint16_t> GetvecHBIimagebuffer() const { return m_vechbiImageBuffer; }
 	int GetImageWidth()                          const { return m_iimageWidth; }
@@ -60,6 +90,31 @@ public:
 		HBI_RegEventCallBackFun(m_hHBI, usrHBICallback, this);
 	}
 
+	bool ConectUdp(char* pcFPDIP, unsigned short usFPDPORT, char* pcPCIP, unsigned short usPCPORT) {
+		if (!IsHBIInitialized()) { return false; }
+		std::wcout << L"Connecting to the device with the following settings:\n";
+		std::wcout << L"  FPD IP   : " << pcFPDIP << L"\n";
+		std::wcout << L"  FPD Port : " << usFPDPORT << L"\n";
+		std::wcout << L"  PC IP    : " << pcPCIP << L"\n";
+		std::wcout << L"  PC Port  : " << usPCPORT << L"\n";
+		int iRet = HBI_ConnectDetectorUdp(
+			m_hHBI,
+			pcFPDIP,
+			usFPDPORT,
+			pcPCIP,
+			usPCPORT,
+			0
+		);
+		if (iRet == 0) {
+			std::wcout << L"Connected to the device successfully.\n";
+			return true;
+		}
+		else {
+			std::wcout << L"HBI_ConnectDetectorUdp failed. iRet=" << iRet << L"\n";
+			return false;
+		}
+	}
+
 	bool ConectJumbo(char* pcFPDIP, unsigned short usFPDPORT, char* pcPCIP, unsigned short usPCPORT) {
 		if (!IsHBIInitialized()) { return false; }
 		std::wcout << L"Connecting to the device with the following settings:\n";
@@ -76,6 +131,7 @@ public:
 			0
 		);
 		if (iRet == 0) {
+			std::wcout << L"Connected to the device successfully.\n";
 			return true;
 		}
 		else {
@@ -84,14 +140,68 @@ public:
 		}
 	}
 
-	void GetFPDStatus() {
+	bool GetFPDStatus() {
 		// パネルの情報を取得する
 		if (m_bIsHBIInitialized) {
 			char cserialnumber[14] = { 0 };
 			int iRet = HBI_GetFPDSerialNumber(m_hHBI, cserialnumber); // 配列のポインタを渡す
 			if (iRet != 0) { std::wcout << L"HBI_GetFPDSerialNumber failed. iRet=" << iRet << L"\n"; }
 			std::wcout << L"FPD Serial Number: " << cserialnumber << L"\n";
+			return true;
 		}
+		else {
+			std::wcout << L"HBI is not initialized.\n";
+			return false;
+		}
+	}
+
+	bool GetFPDProductCode() {
+		// パネルの製品コードを取得する
+		if (m_bIsHBIInitialized) {
+			char cproductcode[10] = { 0 };
+			int iRet = HBI_GetHbiProductCode(m_hHBI, cproductcode); // 配列のポインタを渡す
+			if (iRet != 0) { std::wcout << L"HBI_GetFPDProductCode failed. iRet=" << iRet << L"\n"; }
+			std::wcout << L"FPD Product Code: " << cproductcode << L"\n";
+			return true;
+		}
+		else {
+			std::wcout << L"HBI is not initialized.\n";
+			return false;
+		}
+	}
+
+	void GetHbiSatus() {
+		// test用: ステータス関連で必要なものはここに書く
+		if (m_bIsHBIInitialized) {
+			char csdkVer[128] = {0};
+			int iRet = HBI_GetSDKVerion(m_hHBI, csdkVer);
+			std::wcout << L"SDK Version: " << csdkVer << L"\n";
+			if (iRet != 0) { std::wcout << L"HBI_GetHbiStatus failed. iRet=" << iRet << L"\n"; }
+		}
+	}
+
+	bool GetFPDProductCode(std::string& outProductCode) {
+		outProductCode.clear();
+		if (!m_bIsHBIInitialized) {
+			std::wcout << L"HBI is not initialized.\n";
+			return false;
+		}
+
+		char cproductcode[32] = { 0 };
+		const int iRet = HBI_GetHbiProductCode(m_hHBI, cproductcode);
+		if (iRet != 0) {
+			std::wcout << L"HBI_GetFPDProductCode failed. iRet=" << iRet << L"\n";
+			return false;
+		}
+
+		outProductCode = cproductcode;
+		outProductCode.erase(
+			std::remove_if(outProductCode.begin(), outProductCode.end(), [](unsigned char ch) { return std::isspace(ch) != 0; }),
+			outProductCode.end()
+		);
+
+		std::wcout << L"FPD Product Code: " << outProductCode.c_str() << L"\n";
+		return !outProductCode.empty();
 	}
 
 	void GetCaptureParams() {
@@ -139,25 +249,30 @@ public:
 		}
 		// 取得フレーム数
 		SetCaptureFrame(iCaptureFrame);
+		// Exposure time (= 1/fps)
+		iRet = HBI_SetSelfDumpingTime(m_hHBI, iExpMili);
+		if (iRet != 0) {
+			std::wcout << L"HBI_MSetFpsOfTime failed. iRet=" << iRet << L"\n";
+			return false;
+		}
 
 		/* ROI の設定
 		* 横方向は設定ができない。縦方向は中心から等間隔にのみ広げられる。
 		* uleft, utop, uright, ubottom = 0 の時はフルサイズとなる
 		*/
 		m_zoomRect.uleft = 0;
-		m_zoomRect.utop = (iOriginalHeight - iZoomHeight) / 2; // 画像の中心から等間隔に広げる
 		m_zoomRect.uright = iOriginalWidth - 1;
-		m_zoomRect.ubottom = iOriginalHeight - m_zoomRect.utop - 1;
-
+		if (iZoomHeight != 0) {
+			m_zoomRect.utop = (iOriginalHeight - iZoomHeight) / 2; // 画像の中心から等間隔に広げる
+			m_zoomRect.ubottom = iOriginalHeight - m_zoomRect.utop - 1;
+		}
+		else {
+			m_zoomRect.utop = 0;
+			m_zoomRect.ubottom = iOriginalHeight - 1;
+		}
 		iRet = HBI_MSetZoomModeRect(m_hHBI, m_zoomRect);
 		if (iRet != 0) {
 			std::wcout << L"HBI_MSetZoomModeRect failed. iRet=" << iRet << L"\n";
-			return false;
-		}
-		// Exposure time (= 1/fps)
-		iRet = HBI_SetSelfDumpingTime(m_hHBI, iExpMili);
-		if (iRet != 0) {
-			std::wcout << L"HBI_MSetFpsOfTime failed. iRet=" << iRet << L"\n";
 			return false;
 		}
 		return true;
@@ -219,25 +334,8 @@ public:
 	}
 
 private:
-	// コンストラクタ  
-	CHBIDeviceCtrl()  
-		: m_hHBI(nullptr)  
-		, m_bIsHBIInitialized(false)  
-		, m_bIsCapturing(false)
-		, m_iFrame(0)
-		, m_iCaptureFrame(0)
-		, m_iimageWidth(0)
-		, m_iimageHeight(0)
-	{
-		std::memset(&m_modedata, 0, sizeof(m_modedata));
-		std::memset(&m_modelist, 0, sizeof(m_modelist));
-		std::memset(&m_zoomRect, 0, sizeof(m_zoomRect));
-	}
 
-	void SetCaptureFrame(int iCaptureFrame) {
-		m_iCaptureFrame = iCaptureFrame;
-		return;
-	}
+	void SetCaptureFrame(int iCaptureFrame) { m_iCaptureFrame = iCaptureFrame; }
 
 	bool IsHBIInitialized() const { return m_bIsHBIInitialized; }  
 
@@ -280,7 +378,7 @@ private:
 	)
 	{
  		CHBIDeviceCtrl* self = static_cast<CHBIDeviceCtrl*>(pContext);
-		if (!self) { return; }
+		if (!self) { return 0; }
 		return self->OnHBICallback(
 			ifpdId,
 			eventId,

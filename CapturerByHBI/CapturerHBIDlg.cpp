@@ -5,6 +5,7 @@
 #include <thread>
 #include <atomic>
 #include <cstring>
+#include <sstream>
 #include <tiffio.h>
 #include <numeric>
 #include <string>
@@ -90,6 +91,7 @@ struct CaptureConfig {
     std::string m_PCIP;
     int m_iFPDPORT;
     int m_iPCORT;
+	int m_iFPDProductCode = 0;
     int m_igainType       = 0;
     int m_iexpMili        = 0;
     int m_iCaptureFrame   = 0;
@@ -97,28 +99,159 @@ struct CaptureConfig {
 	int m_ioriginalWidth  = 0;
 	int m_ioriginalHeight = 0;
     int m_izoomWidth      = 0;
-    int m_izoomHeight     = 0; // 高さ方向のみ変えられる
+    int m_izoomHeight     = 0;
 };
 
-bool LoadCaptureConfig(const std::wstring& path, CaptureConfig& cfg) {
-    std::ifstream ifs(path);
+bool LoadCaptureConfig(const std::wstring& strParamsJSONPath, const std::string& strProductCodes, CaptureConfig& CaptureConfig) {
+    std::ifstream ifs(strParamsJSONPath);
     if (!ifs.is_open()) {
-        std::wcerr << L"Failed to open: " << path << std::endl;
+        std::wcerr << L"Failed to open: " << strParamsJSONPath << std::endl;
         return false;
     }
 
     try {
-        nlohmann::json j;
-        ifs >> j;
+        std::string strParamsJSONText((std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
 
-        cfg.m_igainType       = j.value("gainType", 0);
-        cfg.m_iexpMili        = j.value("expMili", 0);
-        cfg.m_iCaptureFrame   = j.value("CaptureFrame", 0);
-        cfg.m_ibinningType    = j.value("binningType", 0);
-		cfg.m_ioriginalWidth  = j.value("originalWidth", 0);
-		cfg.m_ioriginalHeight = j.value("originalHeight", 0);
-        cfg.m_izoomWidth      = j.value("zoomWidth", 0);
-        cfg.m_izoomHeight     = j.value("zoomHeight", 0);
+        std::vector<std::string> vecstrProductCodes;
+        std::vector<std::string> vecstrObjectTexts;
+        int iArrayDepth = 0;
+        int iObjectDepth = 0;
+        std::size_t objectStart = std::string::npos;
+        bool bIsString = false;
+        bool bIsEscaped = false;
+        bool bIsCaptureTopLevelString = false;
+        std::string strCurrentTopLevelString;
+
+
+        for (std::size_t i = 0; i < strParamsJSONText.size(); ++i) {
+            const char ch = strParamsJSONText[i];
+
+            if (bIsString) {
+                if (bIsEscaped) {
+                    if (bIsCaptureTopLevelString) {
+                        strCurrentTopLevelString.push_back(ch);
+                    }
+                    bIsEscaped = false;
+                    continue;
+                }
+                if (ch == '\\') {
+                    if (bIsCaptureTopLevelString) {
+                        strCurrentTopLevelString.push_back(ch);
+                    }
+                    bIsEscaped = true;
+                    continue;
+                }
+                if (ch == '"') {
+                    bIsString = false;
+                    if (bIsCaptureTopLevelString) {
+                        vecstrProductCodes.emplace_back(strCurrentTopLevelString);
+                        strCurrentTopLevelString.clear();
+                        bIsCaptureTopLevelString = false;
+                    }
+                    continue;
+                }
+                if (bIsCaptureTopLevelString) {
+                    strCurrentTopLevelString.push_back(ch);
+                }
+                continue;
+            }
+
+            if (ch == '"') {
+                bIsString = true;
+                if (iArrayDepth == 1 && iObjectDepth == 0) {
+                    bIsCaptureTopLevelString = true;
+                    strCurrentTopLevelString.clear();
+                }
+                continue;
+            }
+
+            if (ch == '[') {
+                ++iArrayDepth;
+                continue;
+            }
+
+            if (ch == ']') {
+                if (iArrayDepth > 0) {
+                    --iArrayDepth;
+                }
+                continue;
+            }
+
+            if (ch == '{') {
+                if (iObjectDepth == 0) {
+                    objectStart = i;
+                }
+                ++iObjectDepth;
+                continue;
+            }
+
+            if (ch == '}') {
+                if (iObjectDepth > 0) {
+                    --iObjectDepth;
+                    if (iObjectDepth == 0 && objectStart != std::string::npos) {
+                        vecstrObjectTexts.emplace_back(strParamsJSONText.substr(objectStart, i - objectStart + 1));
+                        objectStart = std::string::npos;
+                    }
+                }
+            }
+        }
+
+        if (vecstrProductCodes.empty() || vecstrObjectTexts.empty() || vecstrProductCodes.size() != vecstrObjectTexts.size()) {
+            std::cerr << "Config format error. Expected [\"ProductCode\", { ... }] pairs." << std::endl;
+            return false;
+        }
+
+        nlohmann::json selected;
+        bool foundMatch = false;
+        bool foundFallback = false;
+
+        for (std::size_t idx = 0; idx < vecstrObjectTexts.size(); ++idx) {
+            const std::string& itemProductCode = vecstrProductCodes[idx];
+            const std::string& objText = vecstrObjectTexts[idx];
+
+            std::istringstream iss(objText);
+            nlohmann::json current;
+            iss >> current;
+            if (iss.fail()) {
+                continue;
+            }
+
+            if (itemProductCode == strProductCodes) {
+                selected = current;
+                foundMatch = true;
+                break;
+            }
+
+            if (!foundFallback && itemProductCode.empty()) {
+                selected = current;
+                foundFallback = true;
+            }
+        }
+
+        if (!foundMatch && !foundFallback) {
+            std::cerr << "No matching ProductCode in JSON. ProductCode=" << strProductCodes << std::endl;
+            return false;
+        }
+
+        CaptureConfig.m_igainType       = selected.value("gainType", 0);
+        CaptureConfig.m_iexpMili        = selected.value("expMili", 0);
+        CaptureConfig.m_iCaptureFrame   = selected.value("CaptureFrame", 0);
+        CaptureConfig.m_ibinningType    = selected.value("binningType", 0);
+		CaptureConfig.m_ioriginalWidth  = selected.value("originalWidth", 0);
+		CaptureConfig.m_ioriginalHeight = selected.value("originalHeight", 0);
+        CaptureConfig.m_izoomWidth      = selected.value("zoomWidth", 0);
+        CaptureConfig.m_izoomHeight     = selected.value("zoomHeight", 0);
+
+        std::cout << "Loaded config :"
+			<< " gainType=" << CaptureConfig.m_igainType
+			<< " expMili=" << CaptureConfig.m_iexpMili
+			<< " CaptureFrame=" << CaptureConfig.m_iCaptureFrame
+			<< " binningType=" << CaptureConfig.m_ibinningType
+			<< " originalWidth=" << CaptureConfig.m_ioriginalWidth
+			<< " originalHeight=" << CaptureConfig.m_ioriginalHeight
+			<< " zoomWidth=" << CaptureConfig.m_izoomWidth
+			<< " zoomHeight=" << CaptureConfig.m_izoomHeight
+			<< std::endl;
     }
     catch (const std::exception& e) {
         std::cerr << "JSON parse error: " << e.what() << std::endl;
@@ -130,47 +263,66 @@ bool LoadCaptureConfig(const std::wstring& path, CaptureConfig& cfg) {
 
 int main()
 {
-	CaptureConfig cfg;
+	CaptureConfig CaptureConfig;
     std::wstring strjsonFilePath = L"D:\\github\\CapturerByHBI\\CapturerByHBI\\CapturerByHBI\\DeviceParams.json";
-    LoadCaptureConfig(strjsonFilePath, cfg);
+    std::string strProductCode;
 
     constexpr char* kpcm_FPDIP            = "192.168.10.40";
     constexpr char* kpcm_PCIP             = "192.168.10.20";
     constexpr unsigned short kusFPDPORT = 32897;
     constexpr unsigned short kusPCPORT  = 32896;
 
-    const int kiCAPTUREFRAME   = cfg.m_iCaptureFrame; 
-	const int kiGAINLEVEL      = cfg.m_igainType;          // 1: 0.6, 2: 1.2PC, 3:  2.4PC, 4: 3.6PC, 5: 4.8PC, 6: 7.2PC, 8: LFW, 9: HFW, 10: 0.3PC, 11: 0.15PC
-    const int kiEXPTIME_milli  = cfg.m_iexpMili;       
-	const int kiBinningType    = cfg.m_ibinningType;       // 1:1x1,2:2x2,3:3x3,4:4x4
-	const int kiOriginalWidth  = cfg.m_ioriginalWidth;       // 元の画像の幅
-	const int kiOriginalHeight = cfg.m_ioriginalHeight;      // 元の画像の高さ
-	// const int kiZoomWidth     = cfg.zoomWidth;         // 横方向のズームはできない
-	const int kiZoomHeight     = cfg.m_izoomHeight;        // 縦方向のズームサイズ
-    
-
-	if (kiZoomHeight % 2 != 0) {
-		std::cerr << "Zoom height must be a multiple of 2. Adjusting to nearest even number.\n";
-        return -1;
-	}
-
 	CHBIDeviceCtrl cCHBIDeviceCtrl;
 
     // initialize
     bool result = false;
 
-    result = cCHBIDeviceCtrl.Initialize();
 
-    std::wcout << L"Initialize: " << (result ? L"Success" : L"Failed") << std::endl;
+    result = cCHBIDeviceCtrl.Initialize();
+	if (!result) {
+		std::cerr << "Failed to initialize HBI. Exiting.\n";
+		return -1;
+	}
+
 
     cCHBIDeviceCtrl.SetCallBackFun();
 
-    result = cCHBIDeviceCtrl.ConectJumbo(kpcm_FPDIP, kusFPDPORT, kpcm_PCIP, kusPCPORT);
-    std::wcout << L"ConectJumbo: " << (result ? L"Success" : L"Failed") << std::endl;
-    cCHBIDeviceCtrl.GetFPDStatus();
-    if (!result) {
+    if (!cCHBIDeviceCtrl.ConectJumbo(kpcm_FPDIP, kusFPDPORT, kpcm_PCIP, kusPCPORT)) {
 		std::cerr << "Failed to connect to the device. Exiting.\n";
 		return -1;
+    }
+    
+
+    cCHBIDeviceCtrl.GetHbiSatus();
+
+    if (!cCHBIDeviceCtrl.GetFPDStatus()) {
+		std::cerr << "Failed to connect to the device. Exiting.\n";
+		return -1;
+    }
+
+    if (!cCHBIDeviceCtrl.GetFPDProductCode(strProductCode)) {
+        std::cerr << "Failed to get FPD product code. Exiting.\n";
+        return -1;
+    }
+
+    if (!LoadCaptureConfig(strjsonFilePath, strProductCode, CaptureConfig)) {
+        std::cerr << "Failed to load capture config for product code. Exiting.\n";
+        return -1;
+    }
+
+
+    const int kiCAPTUREFRAME   = CaptureConfig.m_iCaptureFrame;
+    const int kiGAINLEVEL      = CaptureConfig.m_igainType;          // 1: 0.6, 2: 1.2PC, 3:  2.4PC, 4: 3.6PC, 5: 4.8PC, 6: 7.2PC, 8: LFW, 9: HFW, 10: 0.3PC, 11: 0.15PC
+    const int kiEXPTIME_milli  = CaptureConfig.m_iexpMili;
+    const int kiBinningType    = CaptureConfig.m_ibinningType;       // 1:1x1,2:2x2,3:3x3,4:4x4
+    const int kiOriginalWidth  = CaptureConfig.m_ioriginalWidth;
+    const int kiOriginalHeight = CaptureConfig.m_ioriginalHeight;
+    // const int kiZoomWidth     = CaptureConfig.zoomWidth;
+    const int kiZoomHeight     = CaptureConfig.m_izoomHeight;
+
+    if (kiZoomHeight % 2 != 0) {
+        std::cerr << "Zoom height must be a multiple of 2. Adjusting to nearest even number.\n";
+        return -1;
     }
 
     cCHBIDeviceCtrl.SetCaptureParams(
@@ -184,6 +336,7 @@ int main()
     );
 
     cCHBIDeviceCtrl.GetCaptureParams();
+
     result = cCHBIDeviceCtrl.UpdateProperties();
     if (!result) {
         std::cerr << "Failed to get image property. Exiting.\n";

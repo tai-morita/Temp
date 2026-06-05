@@ -1,10 +1,36 @@
-{
-  "gainType": 2,
-  "expMili": 33,
-  "CaptureFrame": 6,
-  "binningType": 1,
-  "originalWidth": 3072,
-  "originalHeight": 3072,
-  "zoomWidth": 3072,
-  "zoomHeight": 1000
-}
+
+[
+  "X-Panel3030zFDM",
+  {
+    "gainType": 2,
+    "expMili": 33,
+    "CaptureFrame": 2,
+    "binningType": 1,
+    "originalWidth": 3072,
+    "originalHeight": 3072,
+    "zoomWidth": 0,
+    "zoomHeight": 1024
+  },
+  "3000048807",
+  {
+    "gainType": 2,
+    "expMili": 33,
+    "CaptureFrame": 6,
+    "binningType": 1,
+    "originalWidth": 2560,
+    "originalHeight": 2048,
+    "zoomWidth": 0,
+    "zoomHeight": 0
+  },
+  "",
+  {
+    "gainType": 2,
+    "expMili": 33,
+    "CaptureFrame": 6,
+    "binningType": 1,
+    "originalWidth": 2560,
+    "originalHeight": 2048,
+    "zoomWidth": 0,
+    "zoomHeight": 0
+  }
+]
