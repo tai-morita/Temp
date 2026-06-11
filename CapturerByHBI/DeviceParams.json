@@ -14,23 +14,25 @@
   "3000048807",
   {
     "gainType": 2,
-    "expMili": 33,
-    "CaptureFrame": 6,
+    "expMili": 20,
+    "CaptureFrame": 200,
     "binningType": 1,
     "originalWidth": 2560,
     "originalHeight": 2048,
+    "zoomLeft": 0,
+    "zoomTop": 10,
     "zoomWidth": 0,
     "zoomHeight": 0
   },
   "",
   {
-    "gainType": 2,
+    "gainType": 3,
     "expMili": 33,
     "CaptureFrame": 6,
     "binningType": 1,
     "originalWidth": 2560,
     "originalHeight": 2048,
     "zoomWidth": 0,
-    "zoomHeight": 0
+    "zoomHeight": 10
   }
 ]

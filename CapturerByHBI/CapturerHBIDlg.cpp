@@ -91,15 +91,17 @@ struct CaptureConfig {
     std::string m_PCIP;
     int m_iFPDPORT;
     int m_iPCORT;
-	int m_iFPDProductCode = 0;
-    int m_igainType       = 0;
-    int m_iexpMili        = 0;
-    int m_iCaptureFrame   = 0;
-    int m_ibinningType    = 0;
-	int m_ioriginalWidth  = 0;
-	int m_ioriginalHeight = 0;
-    int m_izoomWidth      = 0;
-    int m_izoomHeight     = 0;
+	int m_iFPDProductCode  = 0;
+    int m_igainType        = 0;
+    int m_iexpMili         = 0;
+    int m_iCaptureFrame    = 0;
+    int m_ibinningType     = 0;
+	int m_ioriginalWidth   = 0;
+	int m_ioriginalHeight  = 0;
+	int m_izoomLeft        = 0;
+	int m_izoomTop         = 0;
+	int m_izoomWidth       = 0;
+	int m_izoomHeight      = 0;
 };
 
 bool LoadCaptureConfig(const std::wstring& strParamsJSONPath, const std::string& strProductCodes, CaptureConfig& CaptureConfig) {
@@ -241,18 +243,25 @@ bool LoadCaptureConfig(const std::wstring& strParamsJSONPath, const std::string&
 		CaptureConfig.m_ioriginalHeight = selected.value("originalHeight", 0);
         CaptureConfig.m_izoomWidth      = selected.value("zoomWidth", 0);
         CaptureConfig.m_izoomHeight     = selected.value("zoomHeight", 0);
+		CaptureConfig.m_izoomLeft = selected.value("zoomLeft", 0);
+		CaptureConfig.m_izoomTop = selected.value("zoomTop", 0);
+		CaptureConfig.m_izoomWidth = selected.value("zoomWidth", 0);
+		CaptureConfig.m_izoomHeight = selected.value("zoomHeight", 0);
 
-        std::cout << "Loaded config :"
-			<< " gainType=" << CaptureConfig.m_igainType
-			<< " expMili=" << CaptureConfig.m_iexpMili
-			<< " CaptureFrame=" << CaptureConfig.m_iCaptureFrame
-			<< " binningType=" << CaptureConfig.m_ibinningType
-			<< " originalWidth=" << CaptureConfig.m_ioriginalWidth
-			<< " originalHeight=" << CaptureConfig.m_ioriginalHeight
-			<< " zoomWidth=" << CaptureConfig.m_izoomWidth
-			<< " zoomHeight=" << CaptureConfig.m_izoomHeight
+        std::wcout << "Loaded config :"
+			<< L"   gainType=" << CaptureConfig.m_igainType << L"\n"
+			<< L"   expMili=" << CaptureConfig.m_iexpMili <<  L"\n"
+			<< L"   CaptureFrame=" << CaptureConfig.m_iCaptureFrame <<  L"\n"
+			<< L"   binningType=" << CaptureConfig.m_ibinningType <<  L"\n"
+			<< L"   originalWidth=" << CaptureConfig.m_ioriginalWidth <<  L"\n"
+			<< L"   originalHeight=" << CaptureConfig.m_ioriginalHeight <<  L"\n"
+			<< L"   zoomLeft=" << CaptureConfig.m_izoomLeft << L"\n"
+			<< L"   zoomTop=" << CaptureConfig.m_izoomTop << L"\n"
+			<< L"   zoomWidth=" << CaptureConfig.m_izoomWidth <<  L"\n"
+            << L"   zoomHeight=" << CaptureConfig.m_izoomHeight
 			<< std::endl;
     }
+
     catch (const std::exception& e) {
         std::cerr << "JSON parse error: " << e.what() << std::endl;
         return false;
@@ -267,16 +276,18 @@ int main()
     std::wstring strjsonFilePath = L"D:\\github\\CapturerByHBI\\CapturerByHBI\\CapturerByHBI\\DeviceParams.json";
     std::string strProductCode;
 
-    constexpr char* kpcm_FPDIP            = "192.168.10.40";
-    constexpr char* kpcm_PCIP             = "192.168.10.20";
+    // パラメータの設定
+    constexpr char* kpcm_FPDIP          = "192.168.10.40";
+    constexpr char* kpcm_PCIP           = "192.168.10.20";
     constexpr unsigned short kusFPDPORT = 32897;
     constexpr unsigned short kusPCPORT  = 32896;
+
+
 
 	CHBIDeviceCtrl cCHBIDeviceCtrl;
 
     // initialize
     bool result = false;
-
 
     result = cCHBIDeviceCtrl.Initialize();
 	if (!result) {
@@ -284,58 +295,83 @@ int main()
 		return -1;
 	}
 
-
     cCHBIDeviceCtrl.SetCallBackFun();
 
     if (!cCHBIDeviceCtrl.ConectJumbo(kpcm_FPDIP, kusFPDPORT, kpcm_PCIP, kusPCPORT)) {
 		std::cerr << "Failed to connect to the device. Exiting.\n";
 		return -1;
     }
+
+    ::this_thread::sleep_for(std::chrono::seconds(1));
     
-
-    cCHBIDeviceCtrl.GetHbiSatus();
-
-    if (!cCHBIDeviceCtrl.GetFPDStatus()) {
-		std::cerr << "Failed to connect to the device. Exiting.\n";
+    if (!cCHBIDeviceCtrl.IsConnected()) {
+        std::cerr << "Device is not connected. Exiting.\n";
 		return -1;
     }
 
-    if (!cCHBIDeviceCtrl.GetFPDProductCode(strProductCode)) {
-        std::cerr << "Failed to get FPD product code. Exiting.\n";
+    if (!cCHBIDeviceCtrl.GetSDKVersion()) {
+        std::cerr << "Failed to get HBI status. Exiting.\n";
+    }
+
+    if (!cCHBIDeviceCtrl.GetFPDSerialNumber()) {
+        std::cerr << "Failed to Get FPD Serial Number. Exiting.\n";
         return -1;
     }
 
+	strProductCode = cCHBIDeviceCtrl.GetFPDProductCode();
+    if (strProductCode.empty()) {
+        std::cerr << "Failed to Get FPD Product Code. Exiting.\n";
+        return -1;
+    }
+
+    // Produce Code に対応した撮影パラメータを取得する
     if (!LoadCaptureConfig(strjsonFilePath, strProductCode, CaptureConfig)) {
         std::cerr << "Failed to load capture config for product code. Exiting.\n";
         return -1;
     }
 
-
-    const int kiCAPTUREFRAME   = CaptureConfig.m_iCaptureFrame;
-    const int kiGAINLEVEL      = CaptureConfig.m_igainType;          // 1: 0.6, 2: 1.2PC, 3:  2.4PC, 4: 3.6PC, 5: 4.8PC, 6: 7.2PC, 8: LFW, 9: HFW, 10: 0.3PC, 11: 0.15PC
-    const int kiEXPTIME_milli  = CaptureConfig.m_iexpMili;
-    const int kiBinningType    = CaptureConfig.m_ibinningType;       // 1:1x1,2:2x2,3:3x3,4:4x4
-    const int kiOriginalWidth  = CaptureConfig.m_ioriginalWidth;
+    const int kiCAPTUREFRAME = CaptureConfig.m_iCaptureFrame;
+    const int kiGAINLEVEL = CaptureConfig.m_igainType;          // 1: 0.6, 2: 1.2PC, 3:  2.4PC, 4: 3.6PC, 5: 4.8PC, 6: 7.2PC, 8: LFW, 9: HFW, 10: 0.3PC, 11: 0.15PC
+    const int kiEXPTIME_milli = CaptureConfig.m_iexpMili;
+    const int kiBinningType = CaptureConfig.m_ibinningType;       // 1:1x1,2:2x2,3:3x3,4:4x4
+    const int kiOriginalWidth = CaptureConfig.m_ioriginalWidth;
     const int kiOriginalHeight = CaptureConfig.m_ioriginalHeight;
-    // const int kiZoomWidth     = CaptureConfig.zoomWidth;
-    const int kiZoomHeight     = CaptureConfig.m_izoomHeight;
+    const int kiZoomWidth = CaptureConfig.m_izoomWidth;         // 横方向のクロップはできないため、実際には使用されない
+    const int kiZoomHeight = CaptureConfig.m_izoomHeight;
+    const int kiZoomLeft = CaptureConfig.m_izoomLeft;
+    const int kiZoomTop = CaptureConfig.m_izoomTop;
+    const int kiZoomWith = CaptureConfig.m_izoomWidth;
 
     if (kiZoomHeight % 2 != 0) {
         std::cerr << "Zoom height must be a multiple of 2. Adjusting to nearest even number.\n";
         return -1;
     }
 
-    cCHBIDeviceCtrl.SetCaptureParams(
+    ::this_thread::sleep_for(std::chrono::seconds(1));
+
+    if (!cCHBIDeviceCtrl.SetCaptureParams(
         kiGAINLEVEL,
         kiEXPTIME_milli,
         kiCAPTUREFRAME,
         kiBinningType,
         kiOriginalWidth,
         kiOriginalHeight,
-        kiZoomHeight
-    );
+		kiZoomLeft,
+		kiZoomTop,
+		kiZoomWith,
+		kiZoomHeight
+    )) {
+        std::cerr << "Failed to Set Capture Params. Exiting. \n";
+        return -1;
+    }
 
-    cCHBIDeviceCtrl.GetCaptureParams();
+    ::this_thread::sleep_for(std::chrono::seconds(3));
+
+    if (!cCHBIDeviceCtrl.GetCaptureParams()) {
+        std::cerr << "Failed to Get Capture Params. Exiting.\n";
+        return -1;
+    }
+    ::this_thread::sleep_for(std::chrono::seconds(1));
 
     result = cCHBIDeviceCtrl.UpdateProperties();
     if (!result) {
