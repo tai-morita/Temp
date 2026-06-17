@@ -15,14 +15,14 @@
   {
     "gainType": 2,
     "expMili": 20,
-    "CaptureFrame": 200,
+    "CaptureFrame": 5,
     "binningType": 1,
     "originalWidth": 2560,
     "originalHeight": 2048,
-    "zoomLeft": 0,
+    "zoomLeft": 20,
     "zoomTop": 10,
-    "zoomWidth": 0,
-    "zoomHeight": 0
+    "zoomWidth": 40,
+    "zoomHeight": 30
   },
   "",
   {
