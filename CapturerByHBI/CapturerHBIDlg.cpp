@@ -79,23 +79,22 @@ void SaveAsMultiFrameTiff(
     TIFFClose(tif);
 }
 
-
-struct CaptureConfig {
-    // 撮影パラメータ
-    int m_iGainType        = 0;
-    int m_iExpMili         = 0;
-    int m_iCaptureFrame    = 0;
-    int m_iBinningType     = 0;
-    int m_iOriginalWidth   = 0;
-    int m_iOriginalHeight  = 0;
-    int m_iZoomLeft        = 0;
-    int m_iZoomTop         = 0;
-    int m_iZoomWidth       = 0;
-    int m_iZoomHeight      = 0;
-};
-
-bool LoadCaptureConfig(const std::wstring& wstrParamsJsonPath, const std::string& strProductCode, CaptureConfig& captureConfig) {
+bool LoadCaptureConfig(const std::wstring& wstrParamsJsonPath, const std::string& strProductCode, CaptureConfig& CaptureConfig) {
+    
     // 撮影パラメータをjsonファイルから読み、構造体にいれるもの
+    struct CCaptureConfig {
+        // 撮影パラメータ
+        int m_iGainType        = 0;
+        int m_iExpMili         = 0;
+        int m_iCaptureFrame    = 0;
+        int m_iBinningType     = 0;
+        int m_iOriginalWidth   = 0;
+        int m_iOriginalHeight  = 0;
+        int m_iZoomLeft        = 0;
+        int m_iZoomTop         = 0;
+        int m_iZoomWidth       = 0;
+        int m_iZoomHeight      = 0;
+    };
     // SystemConstantsFile等の代用
     std::ifstream ifs(wstrParamsJsonPath);
     if (!ifs.is_open()) {
@@ -210,7 +209,7 @@ bool LoadCaptureConfig(const std::wstring& wstrParamsJsonPath, const std::string
                 continue;
             }
 
-			if (itemProductCode == strProductCode) {
+            if (itemProductCode == strProductCode) {
                 selected = current;
                 foundMatch = true;
                 break;
@@ -227,29 +226,29 @@ bool LoadCaptureConfig(const std::wstring& wstrParamsJsonPath, const std::string
             return false;
         }
 
-        captureConfig.m_iGainType       = selected.value("gainType", 0);
-        captureConfig.m_iExpMili        = selected.value("expMili", 0);
-        captureConfig.m_iCaptureFrame   = selected.value("CaptureFrame", 0);
-        captureConfig.m_iBinningType    = selected.value("binningType", 0);
-        captureConfig.m_iOriginalWidth  = selected.value("originalWidth", 0);
-        captureConfig.m_iOriginalHeight = selected.value("originalHeight", 0);
-        captureConfig.m_iZoomLeft       = selected.value("zoomLeft", 0);
-        captureConfig.m_iZoomTop        = selected.value("zoomTop", 0);
-        captureConfig.m_iZoomWidth      = selected.value("zoomWidth", 0);
-        captureConfig.m_iZoomHeight     = selected.value("zoomHeight", 0);
+        CaptureConfig.m_iGainType       = selected.value("gainType", 0);
+        CaptureConfig.m_iExpMili        = selected.value("expMili", 0);
+        CaptureConfig.m_iCaptureFrame   = selected.value("CaptureFrame", 0);
+        CaptureConfig.m_iBinningType    = selected.value("binningType", 0);
+        CaptureConfig.m_iOriginalWidth  = selected.value("originalWidth", 0);
+        CaptureConfig.m_iOriginalHeight = selected.value("originalHeight", 0);
+        CaptureConfig.m_iZoomLeft       = selected.value("zoomLeft", 0);
+        CaptureConfig.m_iZoomTop        = selected.value("zoomTop", 0);
+        CaptureConfig.m_iZoomWidth      = selected.value("zoomWidth", 0);
+        CaptureConfig.m_iZoomHeight     = selected.value("zoomHeight", 0);
 
         std::wcout << "Loaded config :"
-            << L"   gainType=" << captureConfig.m_iGainType << L"\n"
-            << L"   expMili=" << captureConfig.m_iExpMili <<  L"\n"
-            << L"   CaptureFrame=" << captureConfig.m_iCaptureFrame <<  L"\n"
-            << L"   binningType=" << captureConfig.m_iBinningType <<  L"\n"
-            << L"   originalWidth=" << captureConfig.m_iOriginalWidth <<  L"\n"
-            << L"   originalHeight=" << captureConfig.m_iOriginalHeight <<  L"\n"
-            << L"   zoomLeft=" << captureConfig.m_iZoomLeft << L"\n"
-            << L"   zoomTop=" << captureConfig.m_iZoomTop << L"\n"
-            << L"   zoomWidth=" << captureConfig.m_iZoomWidth <<  L"\n"
-            << L"   zoomHeight=" << captureConfig.m_iZoomHeight
-			<< std::endl;
+            << L"   gainType=" << CaptureConfig.m_iGainType << L"\n"
+            << L"   expMili=" << CaptureConfig.m_iExpMili <<  L"\n"
+            << L"   CaptureFrame=" << CaptureConfig.m_iCaptureFrame <<  L"\n"
+            << L"   binningType=" << CaptureConfig.m_iBinningType <<  L"\n"
+            << L"   originalWidth=" << CaptureConfig.m_iOriginalWidth <<  L"\n"
+            << L"   originalHeight=" << CaptureConfig.m_iOriginalHeight <<  L"\n"
+            << L"   zoomLeft=" << CaptureConfig.m_iZoomLeft << L"\n"
+            << L"   zoomTop=" << CaptureConfig.m_iZoomTop << L"\n"
+            << L"   zoomWidth=" << CaptureConfig.m_iZoomWidth <<  L"\n"
+            << L"   zoomHeight=" << CaptureConfig.m_iZoomHeight
+            << std::endl;
     }
 
     catch (const std::exception& e) {
@@ -260,30 +259,29 @@ bool LoadCaptureConfig(const std::wstring& wstrParamsJsonPath, const std::string
     return true;
 }
 
+
 int main()
 {
-    CaptureConfig captureConfig;
-    std::wstring wstrJsonFilePath = L"D:\\github\\CapturerByHBI\\CapturerByHBI\\CapturerByHBI\\DeviceParams.json";
+    CCaptureConfig CaptureConfig;
+    constexpr std::wstring kwstrJsonFilePath = L"D:\\github\\CapturerByHBI\\CapturerByHBI\\CapturerByHBI\\DeviceParams.json";
     std::string strProductCode;
 
     constexpr const char* kpcFpdIpAddress = "192.168.10.40";
-    constexpr const char* kpcPcIpAddress = "192.168.10.20";
-    constexpr unsigned short kusFpdPort = 32897;
-    constexpr unsigned short kusPcPort = 32896;
+    constexpr const char* kpcPcIpAddress  = "192.168.10.20";
+    constexpr unsigned short kusFpdPort   = 32897;
+    constexpr unsigned short kusPcPort    = 32896;
 
-
-
-    CHBIDeviceCtrl cHbiDeviceCtrl;
+    CHbiDeviceCtrl HbiDeviceCtrl;
 
     // initialize
-    if (!cHbiDeviceCtrl.Initialize()) {
+    if (!HbiDeviceCtrl.Initialize()) {
 		std::cerr << "Failed to initialize HBI. Exiting.\n";
 		return -1;
 	}
 
-    cHbiDeviceCtrl.SetCallbackFunction();
+    HbiDeviceCtrl.SetCallbackFunction();
 
-    if (!cHbiDeviceCtrl.ConnectJumbo(kpcFpdIpAddress, kusFpdPort, kpcPcIpAddress, kusPcPort)) {
+    if (!HbiDeviceCtrl.ConnectJumbo(kpcFpdIpAddress, kusFpdPort, kpcPcIpAddress, kusPcPort)) {
 		std::cerr << "Failed to connect to the device. Exiting.\n";
 		return -1;
     }
@@ -291,41 +289,41 @@ int main()
 	//  接続後、安定するまで少し待つ
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
     
-    if (!cHbiDeviceCtrl.IsConnected()) {
+    if (!HbiDeviceCtrl.IsConnected()) {
         std::cerr << "Device is not connected. Exiting.\n";
 		return -1;
     }
 
-    if (!cHbiDeviceCtrl.GetSDKVersion()) {
+    if (!HbiDeviceCtrl.GetSDKVersion()) {
         std::cerr << "Failed to get HBI status. Exiting.\n";
     }
 
-    if (!cHbiDeviceCtrl.GetFPDSerialNumber()) {
+    if (!HbiDeviceCtrl.GetFPDSerialNumber()) {
         std::cerr << "Failed to Get FPD Serial Number. Exiting.\n";
         return -1;
     }
 
-    strProductCode = cHbiDeviceCtrl.GetFPDProductCode();
+    strProductCode = HbiDeviceCtrl.GetFPDProductCode();
     if (strProductCode.empty()) {
         std::cerr << "Failed to Get FPD Product Code. Exiting.\n";
         return -1;
     }
 
-    if (!LoadCaptureConfig(wstrJsonFilePath, strProductCode, captureConfig)) {
+    if (!LoadCaptureConfig(kwstrJsonFilePath, strProductCode, CaptureConfig)) {
         std::cerr << "Failed to load capture config for product code. Exiting.\n";
         return -1;
     }
 
-    const int kiCaptureFrame   = captureConfig.m_iCaptureFrame;
-    const int kiGainLevel      = captureConfig.m_iGainType;          // 1: 0.6, 2: 1.2PC, 3: 2.4PC, 4: 3.6PC, 5: 4.8PC, 6: 7.2PC, 8: LFW, 9: HFW, 10: 0.3PC, 11: 0.15PC
-    const int kiExpTimeMilli   = captureConfig.m_iExpMili;
-    const int kiBinningType    = captureConfig.m_iBinningType;       // 1:1x1,2:2x2,3:3x3,4:4x4
-    const int kiOriginalWidth  = captureConfig.m_iOriginalWidth;
-    const int kiOriginalHeight = captureConfig.m_iOriginalHeight;
-    const int kiZoomWidth      = captureConfig.m_iZoomWidth;         // 現在のパネル仕様では横方向のオフセットはできないため使用しない
-    const int kiZoomHeight     = captureConfig.m_iZoomHeight;        // 縦方向のサイズ。オフセットを自由にできる
-    const int kiZoomLeft       = captureConfig.m_iZoomLeft;          // 現在のパネル仕様では横方向のオフセットはできないため使用しない
-    const int kiZoomTop        = captureConfig.m_iZoomTop;           // 縦方向の開始座標
+    const int kiCaptureFrame   = CaptureConfig.m_iCaptureFrame;
+    const int kiGainLevel      = CaptureConfig.m_iGainType;          // 1: 0.6, 2: 1.2PC, 3: 2.4PC, 4: 3.6PC, 5: 4.8PC, 6: 7.2PC, 8: LFW, 9: HFW, 10: 0.3PC, 11: 0.15PC
+    const int kiExpTimeMilli   = CaptureConfig.m_iExpMili;
+    const int kiBinningType    = CaptureConfig.m_iBinningType;       // 1:1x1,2:2x2,3:3x3,4:4x4
+    const int kiOriginalWidth  = CaptureConfig.m_iOriginalWidth;
+    const int kiOriginalHeight = CaptureConfig.m_iOriginalHeight;
+    const int kiZoomWidth      = CaptureConfig.m_iZoomWidth;         // 現在のパネル仕様では横方向のオフセットはできないため使用しない
+    const int kiZoomHeight     = CaptureConfig.m_iZoomHeight;        // 縦方向のサイズ。オフセットを自由にできる
+    const int kiZoomLeft       = CaptureConfig.m_iZoomLeft;          // 現在のパネル仕様では横方向のオフセットはできないため使用しない
+    const int kiZoomTop        = CaptureConfig.m_iZoomTop;           // 縦方向の開始座標
 
 
     if (strProductCode == ("X - Panel3030zFDM") && (kiZoomHeight % 2 != 0)) {
@@ -335,7 +333,7 @@ int main()
     }
 
 
-    if (!cHbiDeviceCtrl.SetCaptureParams(
+    if (!HbiDeviceCtrl.SetCaptureParams(
         kiGainLevel,
         kiExpTimeMilli,
         kiCaptureFrame,
@@ -352,37 +350,37 @@ int main()
     }
 
 
-    if (!cHbiDeviceCtrl.GetCaptureParams()) {
+    if (!HbiDeviceCtrl.GetCaptureParams()) {
         std::cerr << "Failed to Get Capture Params. Exiting.\n";
         return -1;
     }
 
-    if (!cHbiDeviceCtrl.UpdateImageProperties()) {
+    if (!HbiDeviceCtrl.UpdateImageProperties()) {
         std::cerr << "Failed to get image property. Exiting.\n";
         return -1;
     }
 
-    cHbiDeviceCtrl.AllocateImageBuffer(kiCaptureFrame);
+    HbiDeviceCtrl.AllocateImageBuffer(kiCaptureFrame);
 
     // Capture Start
-    if (cHbiDeviceCtrl.StartCapture()) {
-        while (cHbiDeviceCtrl.IsCapturing()) {
+    if (HbiDeviceCtrl.StartCapture()) {
+        while (HbiDeviceCtrl.IsCapturing()) {
 		    std::this_thread::sleep_for(
 			    std::chrono::milliseconds(50)
 		    );
         }
-        cHbiDeviceCtrl.StopCapture();
+        HbiDeviceCtrl.StopCapture();
 	}
 
-    cHbiDeviceCtrl.ReleaseDevice();
+    HbiDeviceCtrl.ReleaseDevice();
 
     // Save Image
     std::string strSaveFilePath = "D:\\github\\CapturerByHBI\\CapturerByHBI\\data\\Test.tif";
     SaveAsMultiFrameTiff(
         strSaveFilePath,
-        cHbiDeviceCtrl.GetImageBuffer(),
-        cHbiDeviceCtrl.GetImageWidth(),
-        cHbiDeviceCtrl.GetImageHeight(),
+        HbiDeviceCtrl.GetImageBuffer(),
+        HbiDeviceCtrl.GetImageWidth(),
+        HbiDeviceCtrl.GetImageHeight(),
         kiCaptureFrame
     );
 	std::wcout << L"Done.\n";
