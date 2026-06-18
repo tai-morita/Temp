@@ -14,23 +14,17 @@
 class CHBIDeviceCtrl  
 { 
 private:
-	COMM_CFG         m_commCfg; // 通信の設定を保持する構造体  
-	FPD_AQC_MODE     m_aqcMode;
-	IMAGE_DATA_ST    m_imgData; // 画像取得時のデータを保存する構造体
-	CMOS_ZOOM_RECT   m_zoomRect; // ズームモードの矩形を保存する構造体
-	FPD_MODE_LIST    m_modeList; // モードリストを保存する構造体
-	FPD_MODE_DATA    m_modeData; // モードデータを保存する構造体
 
-	void* m_hHBI;  
-	bool  m_bIsHBIInitialized;  
+	void* m_hHBI;                             // HBISDK のハンドル。これで SDK の関数を呼び出す。
+	bool  m_bIsHBIInitialized;                // 初期化されているか示すフラグ
 	std::vector<uint16_t> m_vecuiImageBuffer; // 最終の画像データを保存するバッファ
 
 	bool m_bIsCapturing; // 画像取得中かどうかを示すフラグ
-	int m_iFrame; // 取得したフレーム数をカウントする変数
+	int m_iFrameCounter; // 取得したフレーム数をカウントする
 	int m_iCaptureFrame; // 取得するフレームの総数
 
-	int m_iImageWidth;
-	int m_iImageHeight;
+	int m_iImageWidth;   // 取得する画像サイズ(幅)
+	int m_iImageHeight;  // 取得する画像サイズ(高さ)
 
 public:
 	// コンストラクタ  
@@ -38,21 +32,16 @@ public:
 		: m_hHBI(nullptr)
 		, m_bIsHBIInitialized(false)
 		, m_bIsCapturing(false)
-		, m_iFrame(0)
+		, m_iFrameCounter(0)
 		, m_iCaptureFrame(0)
 		, m_iImageWidth(0)
 		, m_iImageHeight(0)
-	{
-		std::memset(&m_modeData, 0, sizeof(m_modeData));
-		std::memset(&m_modeList, 0, sizeof(m_modeList));
-		std::memset(&m_zoomRect, 0, sizeof(m_zoomRect));
-	}
 
 	// デストラクタ
 	~CHBIDeviceCtrl()
 	{
 		if (IsCapturing()) {
-			std::wcout << L"Stopping capture before destruction...\n";
+			std::cout << "Stopping capture before destruction...\n";
 			StopCapture();
 		}
 		if (IsHBIInitialized()) {
@@ -65,16 +54,18 @@ public:
 public:
 	// CapturerHBIDlg.cpp からアクセスするためのゲッターメソッド
 	const std::vector<uint16_t>& GetImageBuffer() const { return m_vecuiImageBuffer; }
-	int GetImageWidth()  const { return m_iImageWidth; }
-	int GetImageHeight() const { return m_iImageHeight; }
+	const int GetImageWidth()  const { return m_iImageWidth; }
+	const int GetImageHeight() const { return m_iImageHeight; }
 
+	/**
+	 * @brief SDK の関数を呼び出す前の初期化処理
+	 */
     bool Initialize() {  
 		if (IsHBIInitialized()) {  
-			std::wcout << L"HBI is already initialized.\n";
+			std::cout << "HBI is already initialized.\n";
 			return false;
 		}  
 
-		// 初期化処理  
 		m_hHBI = HBI_Init(0);  
 
 		if (!m_hHBI) { m_bIsHBIInitialized = false; }
@@ -82,115 +73,174 @@ public:
 		return m_bIsHBIInitialized;
     }
 
+	/**
+	 * @brief SDK のイベントコールバック関数を設定する
+	 * イベントが起こった時、SDK が UsetHBICallBack を呼び出す。
+	 */
 	void SetCallbackFunction() { HBI_RegEventCallBackFun(m_hHBI, UserHBICallback, this); }
 
-	bool ConnectJumbo(const char* pcFPDIP, unsigned short usFPDPORT, const char* pcPCIP, unsigned short usPCPORT) {
+	/**
+	 * @brief Jumbo Packet でデバイスに接続する
+	 * @param pcFPDIP   デバイスの IP アドレス
+	 * @param usFPDPORT デバイスのポート番号
+	 * @param pcPCIP    PC の IP アドレス
+	 * @param usPCPORT  PC のポート番号
+	 * @return 接続に成功した場合は true、失敗した場合は false
+	 * @note   HBI_ConnectDetectorJumbo の戻り値は 0 が成功、0 以外が失敗
+	 */
+	bool ConnectJumbo(const char* kpcFPDIP, const unsigned short kusFPDPORT, const char* kpcPCIP, const unsigned short kusPCPORT) {
 		if (!IsHBIInitialized()) { return false; }
 		int iRet = HBI_ConnectDetectorJumbo(
 			m_hHBI,
-			const_cast<char*>(pcFPDIP),
-			usFPDPORT,
-			const_cast<char*>(pcPCIP),
-			usPCPORT,
+			const_cast<char*>(kpcFPDIP),
+			kusFPDPORT,
+			const_cast<char*>(kpcPCIP),
+			kusPCPORT,
 			0);
 		if (iRet) {
-			std::wcout << L"HBI_ConnectDetectorJumbo failed. iRet=" << iRet << L"\n";
+			std::cout << "HBI_ConnectDetectorJumbo failed. iRet=" << iRet << "\n";
 			return false;
 		}
-		std::wcout << L"Connected to the device successfully.\n";
+		std::cout << "Connected to the device successfully.\n";
 		return true;
 	}
 
+	/**
+	 * @brief デバイスが接続されているか確認する
+	 * @return 接続されている場合は true、接続されていない場合は false
+	 * @note   HBI_IsConnect の戻り値は 1 が接続、0 が未接続
+	 */
 	bool IsConnected() {
 		if (!IsHBIInitialized()) { return false; }
 		int iRet = HBI_IsConnect(m_hHBI);
 		if (!iRet) {
-			std::wcout << L"Device is not connected.\n";
+			std::cout << "Device is not connected.\n";
 			return false;
 		}
+		std::cout << "Device is connected.\n";
 		return true;
 	}
 
-	bool GetFPDSerialNumber() {
+	/**
+	 * @brief デバイスのシリアル番号を取得する
+	 * @return 取得に成功した場合はシリアル番号の文字列、失敗した場合は空文字列
+	 * @note   HBI_GetFPDSerialNumber の戻り値は 0 が成功、0 以外が失敗
+	 */
+	std::string GetFPDSerialNumber() {
 		// パネルの情報を取得する
-		if (!m_bIsHBIInitialized) { return false; }
+		if (!m_bIsHBIInitialized) { return ""; }
 
 		char cSerialNumber[14] = { 0 };
 
 		int iRetSerial = HBI_GetFPDSerialNumber(m_hHBI, cSerialNumber);
 
 		if (iRetSerial != 0) {
-			std::wcout << L"HBI_GetFPDSerialNumber failed. iRet=" << iRetSerial << L"\n";
-			return false;
+			std::cout << "HBI_GetFPDSerialNumber failed. iRet=" << iRetSerial << "\n";
+			return "";
 		}
-		std::wcout << L"FPD Serial Number: " << cSerialNumber << L"\n";
-		return true;
+		std::cout << "FPD Serial Number: " << cSerialNumber << "\n";
+		return std::string(cSerialNumber);
 	}
 
+	/**
+	 * @brief デバイスの製品コードを取得する
+	 * @return 取得に成功した場合は製品コードの文字列、失敗した場合は空文字列
+	 * @note   HBI_GetHbiProductCode の戻り値は 0 が成功、0 以外が失敗
+	 */
 	std::string  GetFPDProductCode(){
 		if (!m_bIsHBIInitialized) { return ""; }
 
 		char pcProductCode[10]  = { 0 };
 		int iRetProductCode     = HBI_GetHbiProductCode(m_hHBI, pcProductCode);
 		if (iRetProductCode != 0) {
-			std::wcout << L"HBI_GetFPDProductCode failed. iRet=" << iRetProductCode << L"\n";
+			std::cout << "HBI_GetFPDProductCode failed. iRet=" << iRetProductCode << "\n";
 			return "";
 		}
 
-		std::wcout << L"FPD Product Code: " << pcProductCode << L"\n";
+		std::cout << "FPD Product Code: " << pcProductCode << "\n";
 		return std::string(pcProductCode);
 	}
-
-	bool GetSDKVersion() {
+	
+	/**
+	 * @brief SDK のバージョンを取得する
+	 * @return 取得に成功した場合は SDK のバージョンの文字列、失敗した場合は空文字列
+	 * @note   HBI_GetSDKVerion の戻り値は 0 が成功、0 以外が失敗
+	 */
+	std::string GetSDKVersion() {
 		// HBISDKApi.dll のバージョンを取得する
-		if (!m_bIsHBIInitialized) { return false; }
+		if (!m_bIsHBIInitialized) { return ""; }
 		 
 		char pcSDKVersion[128] = {0};
 		int iRet = HBI_GetSDKVerion(m_hHBI, pcSDKVersion);
 
 		if (iRet != 0) {
-			std::wcout << L"HBI_GetHbiStatus failed. iRet=" << iRet << L"\n"; 
-			return false;
+			std::cout << "HBI_GetSDKVersion failed. iRet=" << iRet << "\n"; 
+			return "";
 		}
-		std::wcout << L"SDK Version: " << pcSDKVersion << L"\n";
-		return true;
+		std::cout << "SDK Version: " << pcSDKVersion << "\n";
+		return std::string(pcSDKVersion);
 	}
 
-	bool GetCaptureParams() {
+	/**
+	 * @brief  現在のキャプチャパラメータをコンソール上に出力する
+	 * @return すべてのパラメータの取得に成功した場合は true、どこかで取得に失敗した場合は false
+	 * @note   デバッグとして使用
+	 */
+	bool PrintCaptureParams() {
 		if (!m_bIsHBIInitialized) { return false; }
 
 		int iRet;
 
-		unsigned int uiBinningType;
-		iRet = HBI_GetBinning(m_hHBI, &uiBinningType);
+		// GainType: HBI_GetPGALevel の戻り値は GainType (1 ~ 11) が成功、失敗は -1
+		int iGainType = HBI_GetPGALevel(m_hHBI);
+		 if (!iGainType) { 
+			std::cout << "HBI_GetPGALevel failed."<< "\n"; 
+			return false;
+		}
+
+		// Binning: HBI_GetBinning の戻り値は 0が成功、失敗は 0以外
+		// iBinningType の値は 1: 1x1, 2: 2x2, 3: 3x3, 4: 4x4
+		int iBinningType;
+		iRet = HBI_GetBinning(m_hHBI, &iBinningType);
 		if (iRet!=0) { 
-			std::wcout << L"HBI_GetPGALevel failed. iRet=" << iRet << L"\n"; 
+			std::cout << "HBI_GetBinning failed. iRet=" << iRet << "\n"; 
 			return false;
 		}
 		
-		unsigned int uiZoomLeft, uiZoomTop, uiZoomWidth, uiZoomHeight;
-		iRet =	HBI_GetCurZoomRect(m_hHBI, &uiZoomLeft, &uiZoomTop, &uiZoomWidth, &uiZoomHeight);
+		// Capture 領域: HBI_GetCurZoomRect の戻り値は 0が成功、失敗は 0以外
+		// iZoomLeft, iZoomTop, iZoomWidth, iZoomHeight はそれぞれ左上の座標と幅、高さを表し
+		// それぞれの変数に値が格納される
+		// 0 が成功、0 以外が失敗
+		int iZoomLeft, iZoomTop, iZoomWidth, iZoomHeight;
+		iRet =	HBI_GetCurZoomRect(m_hHBI, &iZoomLeft, &iZoomTop, &iZoomWidth, &iZoomHeight);
 		if (iRet!=0) { 
-			std::wcout << L"HBI_GetCurZoomRect failed. iRet=" << iRet << L"\n"; 
+			std::cout << "HBI_GetCurZoomRect failed. iRet=" << iRet << "\n"; 
 			return false;
 		}
 
-		int iExpMiliOut;
-		iRet = HBI_GetSelfDumpingTime(m_hHBI, &iExpMiliOut);
+		// Exposure time: HBI_GetSelfDumpingTime の戻り値は 0が成功、失敗は 0以外
+		// imsExposureTime は Exposure time をミリ秒単位で表す
+		// 0 が成功、0 以外が失敗
+		int imsExposureTime;
+		iRet = HBI_GetSelfDumpingTime(m_hHBI, &imsExposureTime);
 		if (iRet!=0) { 
-			std::wcout << L"HBI_GetSelfDumpingTime failed. iRet=" << iRet << L"\n"; 
+			std::cout << "HBI_GetSelfDumpingTime failed. iRet=" << iRet << "\n"; 
 			return false;
 		}
-		float fExpSec = static_cast<float>(iExpMiliOut) / 1000.0f;
+		// 出力用に fps を計算
+		float fExpSec = static_cast<float>(imsExposureTime) / 1000.0f;
 		float ffps = 1.0f / static_cast<float>(fExpSec);
 
-		std::wcout << L"Getting current capture parameters...\n";
-		std::wcout << L"  Gain Type        : " << HBI_GetPGALevel(m_hHBI) << L"\n";
-		std::wcout << L"  Exposure Time    : " << std::fixed << std::setprecision(2) << fExpSec << L" s\n";
-		std::wcout << L"  Frame per Second : " << std::fixed << std::setprecision(2) << ffps << L" fps\n";
-		std::wcout << L"  Binning Type     : " << uiBinningType << L"\n";
-		std::wcout << L"  Zoom Rect        : " << L"(" << uiZoomLeft << L", " << uiZoomTop << L") , " << uiZoomWidth << L" x " << uiZoomHeight << L"\n";
-		return true;
+		// 取得したパラメータをコンソール上に出力する
+		std::cout << "Getting current capture parameters...\n";
+		std::cout << "  Binning Type     : " << iBinningType << "\n";
+		std::cout << "  Gain Type        : " << HBI_GetPGALevel(m_hHBI) << "\n";
+		std::cout << "  Exposure Time (s): " << std::fixed << std::setprecision(2) << fExpSec << " s\n";
+		std::cout << "  Frame per Second : " << std::fixed << std::setprecision(2) << ffps << " fps\n";
+		std::cout << "  Capture Area     : " << 
+		  "(Left, Top) = (" << iZoomLeft << ", " << iZoomTop << ") , Width x Height = " << iZoomWidth << " x " << iZoomHeight << "\n";
+
+		  return true;
 	}
 
 	bool SetCaptureParams(
@@ -212,23 +262,23 @@ public:
 		// GainType
 		int iRet = HBI_MSetPGALevel(m_hHBI, iGainType);
 		if (iRet != 0) {
-			std::wcout << L"Gain Type: " << iGainType << L"\n";
-			std::wcout << L"HBI_MSetPGALevel failed. iRet=" << iRet << L"\n";
+			std::cout << "Gain Type: " << iGainType << "\n";
+			std::cout << "HBI_MSetPGALevel failed. iRet=" << iRet << "\n";
 			return false;
 		}
 		// Binning
 		iRet = HBI_MSetBinning(m_hHBI, iBinningType);
 		if (iRet != 0) {
-			std::wcout << L"Binning Type: " << iBinningType << L"\n";
-			std::wcout << L"HBI_SetBinning failed. iRet=" << iRet << L"\n";
+			std::cout << "Binning Type: " << iBinningType << "\n";
+			std::cout << "HBI_MSetBinning failed. iRet=" << iRet << "\n";
 			return false;
 		}
 
 		// Exposure time (= 1/fps)
-		iRet = HBI_SetSelfDumpingTime(m_hHBI, iExpMili);
+		iRet = HBI_MSetSelfDumpingTime(m_hHBI, iExpMili);
 		if (iRet != 0) {
-			std::wcout << L"Exposure Time (ms): " << iExpMili << L"\n";
-			std::wcout << L"HBI_MSetFpsOfTime failed. iRet=" << iRet << L"\n";
+			std::cout << "Exposure Time (ms): " << iExpMili << "\n";
+			std::cout << "HBI_MSetSelfDumpingTime failed. iRet=" << iRet << "\n";
 			return false;
 		}
 
@@ -238,25 +288,26 @@ public:
 		* 2520zはシングル読出しのため、縦方向のオフセットは自由にできる。
 		* uleft, utop, uright, ubottom = 0 の時はフルサイズとなる
 		*/
+
 		if (iZoomHeight != 0) {
-			m_zoomRect.utop = iZoomTop;
-			m_zoomRect.ubottom = iZoomTop + iZoomHeight - 1;
+			CMOS_ZOOM_RECT.utop = iZoomTop;
+			CMOS_ZOOM_RECT.ubottom = iZoomTop + iZoomHeight - 1;
 		}
 		else {
-			m_zoomRect.utop = 0;
-			m_zoomRect.ubottom = iOriginalHeight - 1;
+			CMOS_ZOOM_RECT.utop = 0;
+			CMOS_ZOOM_RECT.ubottom = iOriginalHeight - 1;
 		}
 		if (iZoomWidth != 0) {
-			m_zoomRect.uleft = iZoomLeft;
-			m_zoomRect.uright = iZoomLeft + iZoomWidth -1;
+			CMOS_ZOOM_RECT.uleft = iZoomLeft;
+			CMOS_ZOOM_RECT.uright = iZoomLeft + iZoomWidth -1;
 		}
 		else {
-			m_zoomRect.uleft = 0;
-			m_zoomRect.uright = iOriginalWidth - 1;
+			CMOS_ZOOM_RECT.uleft = 0;
+			CMOS_ZOOM_RECT.uright = iOriginalWidth - 1;
 		}
-		iRet = HBI_MSetZoomModeRect(m_hHBI, m_zoomRect);
+		iRet = HBI_MSetZoomModeRect(m_hHBI, CMOS_ZOOM_RECT);
 		if (iRet != 0) {
-			std::wcout << L"HBI_MSetZoomModeRect failed. iRet=" << iRet << L"\n";
+			std::cout << "HBI_MSetZoomModeRect failed. iRet=" << iRet << "\n";
 			return false;
 		}
 		return true;
@@ -264,7 +315,7 @@ public:
 
 	void AllocateImageBuffer(int iCaptureFrame) {
 		// 画像バッファを設定する
-		m_iFrame = 0;
+		m_iFrameCounter = 0;
 		m_vecuiImageBuffer.resize(static_cast<size_t>(m_iImageWidth) * static_cast<size_t>(m_iImageHeight) * static_cast<size_t>(iCaptureFrame));
 	}
 
@@ -275,10 +326,10 @@ public:
 		int iRet = HBI_GetImageProperty(m_hHBI, &imgProp);
 		m_iImageWidth = imgProp.nwidth;
 		m_iImageHeight = imgProp.nheight;
-		std::wcout << L"Image Properties:" << m_iImageWidth << L" x " << m_iImageHeight << std::endl;
+		std::cout << "Image Properties:" << m_iImageWidth << " x " << m_iImageHeight << std::endl;
 
 		if (iRet != 0) {
-			std::wcout << L"HBI_GetImageProperty failed. iRet=" << iRet << L"\n";
+			std::cout << "HBI_GetImageProperty failed. iRet=" << iRet << "\n";
 			return false;
 		}
 		return true;
@@ -286,13 +337,13 @@ public:
 
 	// 画像取得開始
 	bool StartCapture() {
-		m_aqcMode.eAqccmd = LIVE_ACQ_DEFAULT_TYPE; // ライブキャプチャ用のACQMODE
+		FPD_AQC_MODE.eAqccmd = LIVE_ACQ_DEFAULT_TYPE; // ライブキャプチャ用のACQMODE
 
 		if (!IsHBIInitialized()) { return false; }
-		m_iFrame = 0;
+		m_iFrameCounter = 0;
 		m_bIsCapturing = true; // 画像取得中フラグを立てる
 		HBI_LiveAcquisition(m_hHBI, m_aqcMode);
-		std::wcout << L"Capture started...\n";
+		std::cout << "Capture started...\n";
 		return true;
 	}
 
@@ -301,7 +352,7 @@ public:
 		if (!IsHBIInitialized()) { return false; }
 		HBI_StopAcquisition(m_hHBI);
 		m_bIsCapturing = false; // 画像取得中フラグを下げる
-		std::wcout << L"Capture stopped.\n";
+		std::cout << "Capture stopped.\n";
 		return true;
 	}
 
@@ -310,7 +361,7 @@ public:
 
 	bool ReleaseDevice() {
 		if (IsCapturing()) {
-			std::wcout << L"Stopping capture before release...\n";
+			std::cout << "Stopping capture before release...\n";
 			StopCapture();
 		}
 		if (IsHBIInitialized()) {
@@ -329,14 +380,14 @@ private:
 
 	// 取得した画像をバッファに保存する関数
 	void SaveImageBuffer(void* pvParam1){
-		if (m_iFrame >= m_iCaptureFrame) {
+		if (m_iFrameCounter >= m_iCaptureFrame) {
 			m_bIsCapturing = false; // 指定枚数撮影したので保存はしない
 			return; 
 		}
 
 		// 取得した画像をバッファに保存するため、フレーム数分オフセットする
 		const size_t kiFramePixelCount = static_cast<size_t>(m_iImageWidth) * static_cast<size_t>(m_iImageHeight);
-		const size_t kiOffset = static_cast<size_t>(m_iFrame) * kiFramePixelCount;
+		const size_t kiOffset = static_cast<size_t>(m_iFrameCounter) * kiFramePixelCount;
 
 		// IMAGE_DATA_ST構造体内のdatabuffに画像データがあるので、それをバッファにコピーする
 		memcpy_s(
@@ -346,8 +397,8 @@ private:
 			kiFramePixelCount * sizeof(uint16_t)
 		);
 		// 保存に成功したらフレーム数をカウントする
-		std::wcout << L"    Received multiple image data, frame id: " << m_iFrame << std::endl;
-		m_iFrame++;
+		std::cout << "    Received multiple image data, frame id: " << m_iFrameCounter << std::endl;
+		m_iFrameCounter++;
 
 	}
 
@@ -392,13 +443,13 @@ private:
 			SaveImageBuffer(peventParam1);
 		}
 		if (eventId == ECALLBACK_TYPE_SET_CFG_OK) {
-			std::wcout << L"Set parameters successfully." << std::endl;
+			std::cout << "Set parameters successfully." << std::endl;
 		}
 		if (eventId == ECALLBACK_TYPE_PACKET_MISS) {
-			std::wcout << L"Packet lost." << std::endl;
+			std::cout << "Packet lost." << std::endl;
 		}
 		if (eventId == ECALLBACK_TYPE_BUFFER_WARNING) {
-			std::wcout << L"Buffer warning." << std::endl;
+			std::cout << "Buffer warning." << std::endl;
 		}
 		return 1;
 	}
