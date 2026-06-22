@@ -2,37 +2,41 @@
 [
   "X-Panel3030zFDM",
   {
-    "gainType": 2,
-    "expMili": 33,
+    "GainType": 2,
+    "msecExposureTime": 33,
     "CaptureFrame": 2,
-    "binningType": 1,
-    "originalWidth": 3072,
-    "originalHeight": 3072,
-    "zoomWidth": 0,
-    "zoomHeight": 1024
+    "BinningType": 1,
+    "OriginalWidth": 3072,
+    "OriginalHeight": 3072,
+    "CaptureAreaLeft": 0,
+    "CaptureAreaTop": 0,
+    "CaptureAreaWidth": 0,
+    "CaptureAreaHeight": 1024
   },
   "3000048807",
   {
-    "gainType": 2,
-    "expMili": 20,
+    "GainType": 2,
+    "msecExposureTime": 300,
     "CaptureFrame": 5,
-    "binningType": 1,
-    "originalWidth": 2560,
-    "originalHeight": 2048,
-    "zoomLeft": 20,
-    "zoomTop": 10,
-    "zoomWidth": 40,
-    "zoomHeight": 30
+    "BinningType": 1,
+    "OriginalWidth": 2560,
+    "OriginalHeight": 2048,
+    "CaptureAreaLeft": 0,
+    "CaptureAreaTop": 10,
+    "CaptureAreaWidth": 0,
+    "CaptureAreaHeight": 70
   },
   "",
   {
-    "gainType": 3,
-    "expMili": 33,
+    "GainType": 3,
+    "msecExposureTime": 300,
     "CaptureFrame": 6,
-    "binningType": 1,
-    "originalWidth": 2560,
-    "originalHeight": 2048,
-    "zoomWidth": 0,
-    "zoomHeight": 10
+    "BinningType": 1,
+    "OriginalWidth": 2560,
+    "OriginalHeight": 2048,
+    "CaptureAreaLeft": 0,
+    "CaptureAreaTop": 0,
+    "CaptureAreaWidth": 0,
+    "CaptureAreaHeight": 10
   }
 ]
