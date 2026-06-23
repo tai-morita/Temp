@@ -323,6 +323,7 @@ int main()
 		return -1;
 	}
 
+    // SDK のイベントコールバック関数の設定。イベントが起こった時、SDK が UserHBICallback を呼び出す。
     HbiDeviceCtrl.SetCallbackFunction();
 
     if (!HbiDeviceCtrl.ConnectJumbo(kpcFpdIpAddress, kusFpdPort, kpcPcIpAddress, kusPcPort)) {
@@ -333,28 +334,33 @@ int main()
 	//  接続後、安定するまで少し待つ
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
     
+    // 接続状態の確認。
     if (!HbiDeviceCtrl.IsConnected()) {
         std::cerr << "Device is not connected. Exiting.\n";
 		return -1;
     }
 
+    // デバイスの情報を取得する。
 	std::string strSDKVersion = HbiDeviceCtrl.GetSDKVersion();
     if (strSDKVersion.empty()) {
         std::cerr << "Failed to get HBI status. Exiting.\n";
     }
 
+    // デバイスのシリアルナンバーを取得する。
 	std::string strSerialNumber = HbiDeviceCtrl.GetFPDSerialNumber();
     if (strSerialNumber.empty()) {
         std::cerr << "Failed to Get FPD Serial Number. Exiting.\n";
         return -1;
     }
 
-    std::string strProductCode = HbiDeviceCtrl.GetFPDProductCode();
+    // デバイスの製品コードを取得する。
+	std::string strProductCode = HbiDeviceCtrl.GetFPDProductCode();
     if (strProductCode.empty()) {
         std::cerr << "Failed to Get FPD Product Code. Exiting.\n";
         return -1;
     }
 
+    // ProductCodeをもとに、JSONファイルから撮影パラメータを読み込む。
     CaptureConfig = LoadCaptureConfig(kwstrJsonFilePath, strProductCode, CaptureConfig);
     if (CaptureConfig.m_iCaptureFrame == 0) {
         std::cerr << "Failed to load capture config for product code. Exiting.\n";
@@ -362,9 +368,9 @@ int main()
     }
 
     const int kiCaptureFrame      = CaptureConfig.m_iCaptureFrame;
-    const int kiGainType          = CaptureConfig.m_iGainType;          // 1: 0.6, 2: 1.2PC, 3: 2.4PC, 4: 3.6PC, 5: 4.8PC, 6: 7.2PC, 8: LFW, 9: HFW, 10: 0.3PC, 11: 0.15PC
+    const int kiGainType          = CaptureConfig.m_iGainType;                 // 1: 0.6, 2: 1.2PC, 3: 2.4PC, 4: 3.6PC, 5: 4.8PC, 6: 7.2PC, 8: LFW, 9: HFW, 10: 0.3PC, 11: 0.15PC
     const int kimillisecExpTime   = CaptureConfig.m_imillisecExposureTime;
-    const int kiBinningType       = CaptureConfig.m_iBinningType;       // 1:1x1,2:2x2,3:3x3,4:4x4
+    const int kiBinningType       = CaptureConfig.m_iBinningType;              // 1:1x1,2:2x2,3:3x3,4:4x4
     const int kiOriginalWidth     = CaptureConfig.m_iOriginalWidth;
     const int kiOriginalHeight    = CaptureConfig.m_iOriginalHeight;
     const int kiCaptureAreaWidth  = CaptureConfig.m_iCaptureAreaWidth;         // 現在のパネル仕様では横方向のオフセットはできないため使用しない
@@ -378,8 +384,10 @@ int main()
         std::cerr << "Zoom height must be a multiple of 2. Adjusting to nearest even number.\n";
         return -1;
     }
+    // 撮影パラメータをデバイスに設定する前に、安定するまで少し待つ。
     std::this_thread::sleep_for(std::chrono::seconds(1));
 
+    // 撮影パラメータをデバイスに設定する。
     if (!HbiDeviceCtrl.SetCaptureParams(
         kiGainType,
         kimillisecExpTime,
@@ -397,16 +405,19 @@ int main()
     }
 
 
+    // 撮影パラメータをデバイスに設定した後、確認のために出力する。
     if (!HbiDeviceCtrl.PrintCaptureParams()) {
         std::cerr << "Failed to Get Capture Params. Exiting.\n";
         return -1;
     }
 
+    // 画像プロパティを更新する。
     if (!HbiDeviceCtrl.UpdateImageProperties()) {
         std::cerr << "Failed to get image property. Exiting.\n";
         return -1;
     }
 
+    // 画像バッファを確保する。
     HbiDeviceCtrl.AllocateImageBuffer(kiCaptureFrame);
 
     std::this_thread::sleep_for(std::chrono::milliseconds(50));

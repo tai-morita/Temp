@@ -86,7 +86,7 @@ public:
 
 	/**
 	 * @brief SDK のイベントコールバック関数を設定する。
-	 * イベントが起こった時、SDK が UsetHBICallBack を呼び出す。
+	 * @note イベントが起こった時、SDK が UserHBICallback を呼び出す。
 	 */
 	void SetCallbackFunction() { HBI_RegEventCallBackFun(m_hHBI, UserHBICallback, this); }
 
