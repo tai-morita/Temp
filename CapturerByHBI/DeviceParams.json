@@ -1,0 +1,42 @@
+
+[
+  "X-Panel3030zFDM",
+  {
+    "GainType": 2,
+    "msecExposureTime": 33,
+    "CaptureFrame": 2,
+    "BinningType": 1,
+    "OriginalWidth": 3072,
+    "OriginalHeight": 3072,
+    "CaptureAreaLeft": 0,
+    "CaptureAreaTop": 0,
+    "CaptureAreaWidth": 0,
+    "CaptureAreaHeight": 1024
+  },
+  "3000048807",
+  {
+    "GainType": 2,
+    "millisecExposureTime": 300,
+    "CaptureFrame": 2,
+    "BinningType": 1,
+    "OriginalWidth": 2560,
+    "OriginalHeight": 2048,
+    "CaptureAreaLeft": 0,
+    "CaptureAreaTop": 10,
+    "CaptureAreaWidth": 0,
+    "CaptureAreaHeight": 70
+  },
+  "",
+  {
+    "GainType": 3,
+    "msecExposureTime": 300,
+    "CaptureFrame": 6,
+    "BinningType": 1,
+    "OriginalWidth": 2560,
+    "OriginalHeight": 2048,
+    "CaptureAreaLeft": 0,
+    "CaptureAreaTop": 0,
+    "CaptureAreaWidth": 0,
+    "CaptureAreaHeight": 10
+  }
+]
