@@ -7,6 +7,8 @@ CapturerByHBI/Common/
 CapturerByHBI/CTiff/
 CapturerByHBI/vcpkg/
 CapturerByHBI/vcpkg_utils/
+CapturerByHBI/html
+CapturerByHBI/latex
 
 # Ignore non-C++ source/header extensions
 *.bash
