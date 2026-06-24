@@ -495,6 +495,8 @@ private:
 		const size_t kiFramePixelCount = static_cast<size_t>(m_iImageWidth) * static_cast<size_t>(m_iImageHeight);
 		const size_t kiOffset          = static_cast<size_t>(m_iFrameCounter) * kiFramePixelCount;
 
+		std::chrono::milliseconds(5000);
+
 		// IMAGE_DATA_ST構造体内のdatabuffに画像データがあるので、それをバッファにコピーする。
 		memcpy_s(
 			m_pImageBuffer + kiOffset,

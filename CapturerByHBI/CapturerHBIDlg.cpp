@@ -289,18 +289,6 @@ struct CCaptureConfig LoadCaptureConfig(const std::wstring& wstrParamsJsonPath, 
         std::cerr << "JSON parse error: " << error.what() << std::endl;
         return CaptureConfig;
     }
-
-	std::cout << "GainType: " << CaptureConfig.m_iGainType << std::endl;
-	std::cout << "ExposureTime: " << CaptureConfig.m_imillisecExposureTime << std::endl;
-	std::cout << "CaptureFrame: " << CaptureConfig.m_iCaptureFrame << std::endl;
-	std::cout << "BinningType: " << CaptureConfig.m_iBinningType << std::endl;
-	std::cout << "OriginalWidth: " << CaptureConfig.m_iOriginalWidth << std::endl;
-	std::cout << "OriginalHeight: " << CaptureConfig.m_iOriginalHeight << std::endl;
-	std::cout << "CaptureAreaLeft: " << CaptureConfig.m_iCaptureAreaLeft << std::endl;
-	std::cout << "CaptureAreaTop: " << CaptureConfig.m_iCaptureAreaTop << std::endl;
-	std::cout << "CaptureAreaWidth: " << CaptureConfig.m_iCaptureAreaWidth << std::endl;
-	std::cout << "CaptureAreaHeight: " << CaptureConfig.m_iCaptureAreaHeight << std::endl;
-
     return CaptureConfig;
 }
 
@@ -308,7 +296,7 @@ struct CCaptureConfig LoadCaptureConfig(const std::wstring& wstrParamsJsonPath, 
 
 int main()
 {
-    CCaptureConfig CaptureConfig;
+    CCaptureConfig cCaptureConfig;
     const std::wstring kwstrJsonFilePath  = L"D:\\github\\CapturerByHBI\\CapturerByHBI\\CapturerByHBI\\DeviceParams.json"; // パラメータを読むJSONファイル
 	constexpr const char* kpcFpdIpAddress = "192.168.10.40"; // FPDのIPアドレス
     constexpr const char* kpcPcIpAddress  = "192.168.10.20"; // PCのIPアドレス
@@ -361,22 +349,22 @@ int main()
     }
 
     // ProductCodeをもとに、JSONファイルから撮影パラメータを読み込む。
-    CaptureConfig = LoadCaptureConfig(kwstrJsonFilePath, strProductCode, CaptureConfig);
-    if (CaptureConfig.m_iCaptureFrame == 0) {
+    cCaptureConfig = LoadCaptureConfig(kwstrJsonFilePath, strProductCode, cCaptureConfig);
+    if (cCaptureConfig.m_iCaptureFrame == 0) {
         std::cerr << "Failed to load capture config for product code. Exiting.\n";
         return -1;
     }
 
-    const int kiCaptureFrame      = CaptureConfig.m_iCaptureFrame;
-    const int kiGainType          = CaptureConfig.m_iGainType;                 // 1: 0.6, 2: 1.2PC, 3: 2.4PC, 4: 3.6PC, 5: 4.8PC, 6: 7.2PC, 8: LFW, 9: HFW, 10: 0.3PC, 11: 0.15PC
-    const int kimillisecExpTime   = CaptureConfig.m_imillisecExposureTime;
-    const int kiBinningType       = CaptureConfig.m_iBinningType;              // 1:1x1,2:2x2,3:3x3,4:4x4
-    const int kiOriginalWidth     = CaptureConfig.m_iOriginalWidth;
-    const int kiOriginalHeight    = CaptureConfig.m_iOriginalHeight;
-    const int kiCaptureAreaWidth  = CaptureConfig.m_iCaptureAreaWidth;         // 現在のパネル仕様では横方向のオフセットはできないため使用しない
-    const int kiCaptureAreaHeight = CaptureConfig.m_iCaptureAreaHeight;        // 縦方向のサイズ。オフセットを自由にできる
-    const int kiCaptureAreaLeft   = CaptureConfig.m_iCaptureAreaLeft;          // 現在のパネル仕様では横方向のオフセットはできないため使用しない
-    const int kiCaptureAreaTop    = CaptureConfig.m_iCaptureAreaTop;           // 縦方向の開始座標
+    const int kiCaptureFrame      = cCaptureConfig.m_iCaptureFrame;
+    const int kiGainType          = cCaptureConfig.m_iGainType;                 // 1: 0.6, 2: 1.2PC, 3: 2.4PC, 4: 3.6PC, 5: 4.8PC, 6: 7.2PC, 8: LFW, 9: HFW, 10: 0.3PC, 11: 0.15PC
+    const int kimillisecExpTime   = cCaptureConfig.m_imillisecExposureTime;
+    const int kiBinningType       = cCaptureConfig.m_iBinningType;              // 1:1x1,2:2x2,3:3x3,4:4x4
+    const int kiOriginalWidth     = cCaptureConfig.m_iOriginalWidth;
+    const int kiOriginalHeight    = cCaptureConfig.m_iOriginalHeight;
+    const int kiCaptureAreaWidth  = cCaptureConfig.m_iCaptureAreaWidth;         // 現在のパネル仕様では横方向のオフセットはできないため使用しない
+    const int kiCaptureAreaHeight = cCaptureConfig.m_iCaptureAreaHeight;        // 縦方向のサイズ。オフセットを自由にできる
+    const int kiCaptureAreaLeft   = cCaptureConfig.m_iCaptureAreaLeft;          // 現在のパネル仕様では横方向のオフセットはできないため使用しない
+    const int kiCaptureAreaTop    = cCaptureConfig.m_iCaptureAreaTop;           // 縦方向の開始座標
 
 
     if (strProductCode == ("X-Panel3030zFDM") && (kiCaptureAreaHeight % 2 != 0)) {
