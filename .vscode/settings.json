@@ -1,6 +1,0 @@
-{
-    "git.blame.editorDecoration.enabled": false,
-    "git.blame.statusBarItem.enabled": false,
-    "gitlens.currentLine.enabled": false,
-    "gitlens.codeLens.enabled": false
-}
