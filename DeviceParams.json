@@ -17,14 +17,14 @@
   {
     "GainType": 2,
     "millisecExposureTime": 333,
-    "CaptureFrame": 100,
+    "CaptureFrame": 10,
     "BinningType": 1,
     "OriginalWidth": 2560,
     "OriginalHeight": 2048,
     "CaptureAreaLeft": 0,
     "CaptureAreaTop": 170,
     "CaptureAreaWidth": 0,
-    "CaptureAreaHeight": 0
+    "CaptureAreaHeight": 200
   },
   "",
   {

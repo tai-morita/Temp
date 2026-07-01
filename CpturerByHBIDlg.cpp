@@ -1,9 +1,13 @@
 ﻿// CpturerByHBI_rev2.cpp : このファイルには 'main' 関数が含まれています。プログラム実行の開始と終了がそこで行われます。
 //
 
+#include <thread>
+#include <fstream>
+#include <chrono>
 #include "pch.h"
 #include "framework.h"
 #include "HBIDeviceCtrl.h"
+#include "../Common/nlohmann/json.hpp"
 #include "../CSmartLog/SmartLog.h"
 #include "../BigTIFF/BigTIFF.h"
 #include "../Registry/Registry.h"
@@ -19,217 +23,144 @@ CWinApp theApp;
 
 using namespace std;
 
-struct CaptureConfig {
-    int m_iGainType = 0; // ゲインモード
-    int m_imillisecExposureTime = 0; // 露光時間(マイクロ秒)
-    int m_iCaptureFrame = 0; // 取得するフレーム数
-    int m_iBinningType = 0; // ビニングモード
-    int m_iOriginalWidth = 0; // 元画像の幅
-    int m_iOriginalHeight = 0; // 元画像の高さ
-    int m_iCaptureAreaLeft = 0; // 取得する画像の左端座標
-    int m_iCaptureAreaTop = 0; // 取得する画像の上端座標
-    int m_iCaptureAreaWidth = 0; // 取得する画像の幅
-    int m_iCaptureAreaHeight = 0; // 取得する画像の高さ
-
-    // コンストラクタで初期化する
-    CaptureConfig() = default;
-
-    CaptureConfig(const std::wstring& wstrParamsJsonPath, const std::string& strProductCode)
-    {
-        *this = LoadCaptureConfig(wstrParamsJsonPath, strProductCode);
+/**
+ * @brief 画像を保存する関数
+ * @param a2dusImage 保存する画像データの2次元配列
+ * @param iSaveFrame 保存するフレーム数
+ * @param kwstrSaveFilePath 保存先のファイルパス
+ */
+void SaveImage(CArray4D<uint16_t> a4duiImage, const int kiImageWidth, const int kiImageHeight, const wstring& kwstrSaveFilePath) {
+    LOG_BEGINF0(7, "HzZX| SaveImage()");
+    // データに不具合があった場合は保存せずに終了する。
+    // 高さ、幅が一致しない or 入力画像のバッファ長が 0 の場合
+    if ((kiImageWidth != a4duiImage.XLen() || kiImageHeight != a4duiImage.YLen()) && a4duiImage.BufferLen() == 0) {
+        LOG_INPROGRESSF("NrwT| Invalid image dimensions: Width=%d, Height=%d", kiImageWidth, kiImageHeight);
+        return;
     }
-
-    /**
-     * @brief 指定されたJSONファイルから、指定されたProductCodeに対応する撮影パラメータを読み込む。
-     * @param wstrParamsJsonPath JSONファイルのパス。
-     * @param strProductCode 読み込む撮影パラメータに対応するProductCode。
-     * @return 読み込んだ撮影パラメータ。
-     */
-    static CaptureConfig LoadCaptureConfig(const std::wstring& wstrParamsJsonPath, const std::string& strProductCode)
-    {
-        CaptureConfig captureConfig;
-
-        std::ifstream ifs(wstrParamsJsonPath);
-        if (!ifs.is_open()) {
-            std::wcerr << L"Failed to open: " << wstrParamsJsonPath << std::endl;
-            return captureConfig;
-        }
-
-        try {
-            const std::string jsonText((std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
-
-            std::vector<std::string> productCodes;
-            std::vector<std::string> objectTexts;
-            std::string currentString;
-            std::size_t objectStart = std::string::npos;
-            int arrayDepth = 0;
-            int objectDepth = 0;
-            bool inString = false;
-            bool escaped = false;
-            bool captureString = false;
-
-            for (std::size_t index = 0; index < jsonText.size(); ++index) {
-                const char currentChar = jsonText[index];
-
-                if (inString) {
-                    if (!escaped) {
-                        if (captureString) {
-                            currentString.push_back(currentChar);
-                        }
-                        escaped = true;
-                        continue;
-                    }
-
-                    if (currentChar == '\\') {
-                        if (captureString) {
-                            currentString.push_back(currentChar);
-                        }
-                        escaped = false;
-                        continue;
-                    }
-
-                    if (currentChar == '"') {
-                        inString = false;
-                        if (captureString) {
-                            productCodes.emplace_back(currentString);
-                            currentString.clear();
-                            captureString = false;
-                        }
-                        continue;
-                    }
-
-                    if (captureString) {
-                        currentString.push_back(currentChar);
-                    }
-                    continue;
-                }
-
-                if (currentChar == '"') {
-                    inString = true;
-                    if (arrayDepth == 1 && objectDepth == 0) {
-                        captureString = true;
-                        currentString.clear();
-                    }
-                    continue;
-                }
-
-                if (currentChar == '[') {
-                    ++arrayDepth;
-                    continue;
-                }
-
-                if (currentChar == ']') {
-                    if (arrayDepth > 0) {
-                        --arrayDepth;
-                    }
-                    continue;
-                }
-
-                if (currentChar == '{') {
-                    if (objectDepth == 0) {
-                        objectStart = index;
-                    }
-                    ++objectDepth;
-                    continue;
-                }
-
-                if (currentChar == '}') {
-                    if (objectDepth > 0) {
-                        --objectDepth;
-                        if (objectDepth == 0 && objectStart != std::string::npos) {
-                            objectTexts.emplace_back(jsonText.substr(objectStart, index - objectStart + 1));
-                            objectStart = std::string::npos;
-                        }
-                    }
-                }
-            }
-
-            if (productCodes.empty() || objectTexts.empty() || productCodes.size() != objectTexts.size()) {
-                std::cerr << "Config format error. Expected [\"ProductCode\", { ... }] pairs." << std::endl;
-                return captureConfig;
-            }
-
-            std::string matchedObjectText;
-            bool hasMatchedProductCode = false;
-            bool hasDefaultProductCode = false;
-
-            for (std::size_t index = 0; index < objectTexts.size(); ++index) {
-                const std::string& currentProductCode = productCodes[index];
-                const std::string& currentObjectText = objectTexts[index];
-
-                if (currentProductCode == strProductCode) {
-                    matchedObjectText = currentObjectText;
-                    hasMatchedProductCode = true;
-                    break;
-                }
-
-                if (!hasDefaultProductCode && currentProductCode.empty()) {
-                    matchedObjectText = currentObjectText;
-                    hasDefaultProductCode = true;
-                }
-            }
-
-            if (!hasMatchedProductCode && !hasDefaultProductCode) {
-                std::cerr << "No matching ProductCode in JSON. ProductCode=" << strProductCode << std::endl;
-                return captureConfig;
-            }
-
-            const auto getIntValue = [&matchedObjectText](std::initializer_list<const char*> keys) -> int {
-                for (const char* key : keys) {
-                    const std::string keyPattern = std::string("\"") + key + "\"";
-                    const std::size_t keyPos = matchedObjectText.find(keyPattern);
-                    if (keyPos == std::string::npos) {
-                        continue;
-                    }
-
-                    std::size_t valuePos = matchedObjectText.find(':', keyPos + keyPattern.size());
-                    if (valuePos == std::string::npos) {
-                        continue;
-                    }
-
-                    ++valuePos;
-                    while (valuePos < matchedObjectText.size() &&
-                        (matchedObjectText[valuePos] == ' ' || matchedObjectText[valuePos] == '\t' ||
-                         matchedObjectText[valuePos] == '\r' || matchedObjectText[valuePos] == '\n')) {
-                        ++valuePos;
-                    }
-
-                    const char* numberStart = matchedObjectText.c_str() + valuePos;
-                    char* numberEnd = nullptr;
-                    const long value = std::strtol(numberStart, &numberEnd, 10);
-                    if (numberEnd != numberStart) {
-                        return static_cast<int>(value);
-                    }
-                }
-
-                return 0;
-            };
-
-            captureConfig.m_iGainType = getIntValue({ "GainType" });
-            captureConfig.m_imillisecExposureTime = getIntValue({ "millisecExposureTime", "msecExposureTime" });
-            captureConfig.m_iCaptureFrame = getIntValue({ "CaptureFrame" });
-            captureConfig.m_iBinningType = getIntValue({ "BinningType" });
-            captureConfig.m_iOriginalWidth = getIntValue({ "OriginalWidth" });
-            captureConfig.m_iOriginalHeight = getIntValue({ "OriginalHeight" });
-            captureConfig.m_iCaptureAreaLeft = getIntValue({ "CaptureAreaLeft" });
-            captureConfig.m_iCaptureAreaTop = getIntValue({ "CaptureAreaTop" });
-            captureConfig.m_iCaptureAreaWidth = getIntValue({ "CaptureAreaWidth" });
-            captureConfig.m_iCaptureAreaHeight = getIntValue({ "CaptureAreaHeight" });
-        }
-        catch (const std::exception& error) {
-            std::cerr << "JSON parse error: " << error.what() << std::endl;
-            return captureConfig;
-        }
-
-        return captureConfig;
+    const int kiTotalFrames = a4duiImage.TMax() - a4duiImage.TMin() + 1;
+    LOG_INPROGRESSF("Oqj2| Saving image data: TotalFrame = %d, Height = %d, Width = %d", kiTotalFrames, kiImageHeight, kiImageWidth);
+    LOG_INPROGRESSF("hZUz| a4duiImage.Mean(double()) = %f", a4duiImage.Mean(double()));
+    LOG_INPROGRESSF("QZrw| Saving image to: %s", std::string(kwstrSaveFilePath.begin(), kwstrSaveFilePath.end()).c_str());
+    CBigTIFF tiffOut;
+    tiffOut.OpenFileToWrite(kwstrSaveFilePath, CBigTIFF::EWriteFormat::TIFF8);
+    for (int iFrame = a4duiImage.TMin(); iFrame < kiTotalFrames; ++iFrame) {
+        CArray2D<uint16_t> a2duiTemp(0, kiImageWidth - 1, 0, kiImageHeight - 1);
+        a2duiTemp = a4duiImage.Geta2dPlane(0, iFrame);
+        double dMean = a2duiTemp.Mean(double());
+        LOG_INPROGRESSF("kB9F| Frame %d: Mean pixel value = %f", iFrame, dMean);
+        tiffOut.WriteFrame(a2duiTemp);
     }
-
-
-};
+    tiffOut.CloseFile();
+}
 
 void CapturerByHBIMain() {
-    LOG_BEGINF0(7, "MAIN: CapturerByHBIMain()");
+    LOG_BEGINF0(7, "3HGr| MAIN: CapturerByHBIMain()");
+    wstring wstrPARAMSJSON = L"D:\\github\\CapturerByHBI\\CapturerByHBI_rev2\\DeviceParams.json"; // パラメータを読むJSONファイル
+    wstring wstrSaveFilePath = L"D:\\github\\CapturerByHBI\\CapturerByHBI_rev2\\CaptureData\\CapturedImage.tif"; // 保存する画像ファイルのパス
+    std::string pstrDestIpAddr = "192.168.10.40"; // FPDのIPアドレス
+    std::string pstrSrcIpAddr = "192.168.10.20"; // PCのIPアドレス
+    constexpr unsigned short kusDestPort = 32897; // FPDのポート番号
+    constexpr unsigned short kusSrcPort = 32896; // PCのポート番号
+
     CHBIDeviceCtrl cHbiDeviceCtrl;
+
+    // HBI の Initialize
+    if (!cHbiDeviceCtrl.Initialize()) {
+        LOG_INPROGRESSF("47WE| HBI Initialize failed.");
+        return;
+    }
+
+    // SDK のイベントコールバック関数を設定する。イベントが発生したとき、 SDK が UserHBICallback を呼び出す。
+    cHbiDeviceCtrl.SetCallbackFunction();
+
+    // Device の接続
+    cHbiDeviceCtrl.ConnectDevice(&pstrDestIpAddr, kusDestPort, &pstrSrcIpAddr, kusSrcPort);
+
+    //  接続後、安定するまで少し待つ
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    // 接続状態の確認。
+    if (!cHbiDeviceCtrl.IsConnected()) {
+        LOG_INPROGRESSF("uW0u| Device is not connected.");
+        return;
+    }
+
+    // デバイスの情報を取得する。
+    std::string strSDKVersion = cHbiDeviceCtrl.GetSDKVersion();
+    if (strSDKVersion.empty()) {
+        LOG_INPROGRESSF("BhLx| Failed to get SDK version.");
+    }
+
+    // デバイスのシリアルナンバーを取得する。
+    std::string strSerialNumber = cHbiDeviceCtrl.GetFPDSerialNumber();
+    if (strSerialNumber.empty()) {
+        LOG_INPROGRESSF("GZMP| Failed to get FPD Serial Number.");
+        return;
+    }
+    // デバイスの製品コードを取得する。
+    std::string strProductCode = cHbiDeviceCtrl.GetFPDProductCode();
+    if (strProductCode.empty()) {
+        LOG_INPROGRESSF("uBK0| Failed to get FPD Product Code.");
+        return;
+    }
+
+    // ProductCodeをもとに、JSONファイルから撮影パラメータを読み込む。
+    CaptureConfig captureConfig(wstrPARAMSJSON, strProductCode);
+    // 撮影枚数が 0 の場合はエラーとして終了する。
+    if (captureConfig.m_iCaptureFrame == 0) {
+        LOG_INPROGRESSF("x1Vf| Failed to load CaptureConfig for Product Code: %s", strProductCode.c_str());
+        return;
+    }
+
+    if (strProductCode == ("X-Panel3030zFDM") && (captureConfig.m_iCaptureAreaHeight % 2 != 0)) {
+        // 3030zの場合は、デュアル読出しのため、中央から等間隔にオフセットする。そのため縦方向のサイズは偶数である必要がある
+        LOG_INPROGRESSF("6Ysy| Zoom height must be a multiple of 2 for Product Code: %s. Adjusting to nearest even number.", strProductCode.c_str());
+        return;
+    }
+    // 撮影パラメータをデバイスに設定する前に、安定するまで少し待つ。
+    std::this_thread::sleep_for(std::chrono::seconds(1));
+
+    // デバイスに撮影パラメータを設定する。
+    if (!cHbiDeviceCtrl.SetCaptureParams(captureConfig)) {
+        LOG_INPROGRESSF("lKkL| Failed to set CaptureConfig for Product Code: %s", strProductCode.c_str());
+        return;
+    }
+
+    // 撮影パラメータをデバイスに設定した後、確認のためにログに出力する。
+    if (!cHbiDeviceCtrl.PrintCaptureParams()) {
+        LOG_INPROGRESSF("IaqJ| Failed to print CaptureConfig for Product Code: %s", strProductCode.c_str());
+        return;
+    }
+
+    // 画像プロパティを更新する。
+    if (!cHbiDeviceCtrl.UpdateImageProperties()) {
+        LOG_INPROGRESSF("mPM3| Failed to update image properties for Product Code: %s", strProductCode.c_str());
+        return;
+    }
+
+    // 画像バッファを確保する。
+    cHbiDeviceCtrl.AllocateImageBuffer(captureConfig.m_iCaptureFrame);
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    // Capture Start
+    if (cHbiDeviceCtrl.StartCapture()) {
+        while (cHbiDeviceCtrl.IsCapturing()) {
+            std::this_thread::sleep_for(
+                std::chrono::milliseconds(50)
+            );
+        }
+        cHbiDeviceCtrl.StopCapture();
+    }
+
+    cHbiDeviceCtrl.DisconnectDevice();
+
+    // 画像を保存する。
+    int iImageHeight = cHbiDeviceCtrl.GetImageHeight();
+    int iImageWidth = cHbiDeviceCtrl.GetImageWidth();
+    CArray4D<uint16_t> a4duiImage = cHbiDeviceCtrl.Geta4duiImage();
+
+    SaveImage(a4duiImage, iImageHeight, iImageWidth, wstrSaveFilePath);
 
 }
 
@@ -252,8 +183,8 @@ int main()
         {
             // TODO: アプリケーションの動作を記述するコードをここに挿入してください。
             CSmartLog::GetiLogFileAccessKeyW(L"CapturerByHBILog.log");
-            LOG_BEGINF0(7, "MAIN");
-			CapturerByHBIMain();
+            LOG_BEGINF0(7, "iX1b| MAIN");
+            CapturerByHBIMain();
             CBigTIFF TiffIn;
         }
     }
@@ -266,5 +197,3 @@ int main()
 
     return nRetCode;
 }
-
-
