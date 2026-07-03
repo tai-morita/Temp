@@ -7,21 +7,21 @@
 #include "../CSmartLog/SmartLog.h"
 
 struct CaptureConfig {
-    int m_iGainType; // ゲインモード
-    int m_imillisecExposureTime; // 露光時間(マイクロ秒)
-    int m_iCaptureFrame; // 取得するフレーム数
-    int m_iBinningType; // ビニングモード
-    int m_iOriginalWidth; // 元画像の幅
-    int m_iOriginalHeight; // 元画像の高さ
-    int m_iCaptureAreaLeft; // 取得する画像の左端座標
-    int m_iCaptureAreaTop; // 取得する画像の上端座標
-    int m_iCaptureAreaWidth; // 取得する画像の幅
-    int m_iCaptureAreaHeight; // 取得する画像の高さ
+    int m_iGainType;             // ゲインモード
+    int m_imsExposureTime; // 露光時間(マイクロ秒)
+    int m_iCaptureFrame;         // 取得するフレーム数
+    int m_iBinningType;          // ビニングモード
+    int m_iOriginalWidth;        // 元画像の幅
+    int m_iOriginalHeight;       // 元画像の高さ
+    int m_iCaptureAreaLeft;      // 取得する画像の左端座標
+    int m_iCaptureAreaTop;       // 取得する画像の上端座標
+    int m_iCaptureAreaWidth;     // 取得する画像の幅
+    int m_iCaptureAreaHeight;    // 取得する画像の高さ
 
     // 外部から渡された設定ファイルとProductCodeで初期化する
     CaptureConfig(const std::wstring& wstrParamsJsonPath, const std::string& strProductCode)
         : m_iGainType(0)
-        , m_imillisecExposureTime(0)
+        , m_imsExposureTime(0)
         , m_iCaptureFrame(0)
         , m_iBinningType(0)
         , m_iOriginalWidth(0)
@@ -194,7 +194,7 @@ struct CaptureConfig {
             }
 
             m_iGainType = objCaptureParams.value("GainType", 0);
-            m_imillisecExposureTime = objCaptureParams.value("millisecExposureTime", 0);
+            m_imsExposureTime = objCaptureParams.value("millisecExposureTime", 0);
             m_iCaptureFrame = objCaptureParams.value("CaptureFrame", 0);
             m_iBinningType = objCaptureParams.value("BinningType", 0);
             m_iOriginalWidth = objCaptureParams.value("OriginalWidth", 0);
