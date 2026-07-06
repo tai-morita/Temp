@@ -48,7 +48,7 @@ void SaveImage(const CArray4D<uint16_t> a4duiImage, const int kiImageWidth, cons
     CBigTIFF tiffOut;
     // BigTIFF 形式で保存する。
     tiffOut.OpenFileToWrite(kwstrSaveFilePath, CBigTIFF::EWriteFormat::TIFF8);
-    for (int iFrame = a4duiImage.TMin(); iFrame < a4duiImage.TMax(); ++iFrame) {
+    for (int iFrame = a4duiImage.TMin(); iFrame <= a4duiImage.TMax(); ++iFrame) {
         CArray2D<uint16_t> a2duiTemp(0, kiImageWidth - 1, 0, kiImageHeight - 1);
         a2duiTemp = a4duiImage.Geta2dPlane(0, iFrame);
         double dMean = a2duiTemp.Mean(double());
@@ -85,7 +85,7 @@ void CapturerByHBIDlg() {
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
     // 接続状態の確認。
-    if (!cHbiDeviceCtrl.IsConnected()) {
+    if (!cHbiDeviceCtrl.IsDeviceConnected()) {
         return;
     }
 
@@ -168,7 +168,7 @@ void CapturerByHBIDlg() {
     const int kiImageWidth  = cHbiDeviceCtrl.GetImageWidth();
     const CArray4D<uint16_t> ka4duiImage = cHbiDeviceCtrl.GetImageBuffer();
 
-    SaveImage(ka4duiImage, kiImageHeight, kiImageWidth, wstrSaveFilePath);
+    SaveImage(ka4duiImage, kiImageWidth, kiImageHeight, wstrSaveFilePath);
 
 }
 
@@ -192,7 +192,7 @@ int main()
             // TODO: アプリケーションの動作を記述するコードをここに挿入してください。
             CSmartLog::GetiLogFileAccessKeyW(L"CapturerByHBILog.log");
             LOG_BEGINF0(7, "iX1b| MAIN");
-            CapturerByHBIMain();
+            CapturerByHBIDlg();
             CBigTIFF TiffIn;
         }
     }

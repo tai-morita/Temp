@@ -8,7 +8,7 @@
 
 struct CaptureConfig {
     int m_iGainType;             // ゲインモード
-    int m_imsExposureTime; // 露光時間(マイクロ秒)
+    int m_imsExpTime; // 露光時間(マイクロ秒)
     int m_iCaptureFrame;         // 取得するフレーム数
     int m_iBinningType;          // ビニングモード
     int m_iOriginalWidth;        // 元画像の幅
@@ -21,7 +21,7 @@ struct CaptureConfig {
     // 外部から渡された設定ファイルとProductCodeで初期化する
     CaptureConfig(const std::wstring& wstrParamsJsonPath, const std::string& strProductCode)
         : m_iGainType(0)
-        , m_imsExposureTime(0)
+        , m_imsExpTime(0)
         , m_iCaptureFrame(0)
         , m_iBinningType(0)
         , m_iOriginalWidth(0)
@@ -32,6 +32,22 @@ struct CaptureConfig {
         , m_iCaptureAreaHeight(0)
     {
         LoadCaptureConfig(wstrParamsJsonPath, strProductCode);
+    }
+
+    /**
+     * @brief 保持しているパラメータを初期化する
+     */
+    void Clear() {
+        m_iGainType = 0;
+        m_imsExpTime = 0;
+        m_iCaptureFrame = 0;
+        m_iBinningType = 0;
+        m_iOriginalWidth = 0;
+        m_iOriginalHeight = 0;
+        m_iCaptureAreaLeft = 0;
+        m_iCaptureAreaTop = 0;
+        m_iCaptureAreaWidth = 0;
+        m_iCaptureAreaHeight = 0;
     }
 
     /**
@@ -194,7 +210,7 @@ struct CaptureConfig {
             }
 
             m_iGainType = objCaptureParams.value("GainType", 0);
-            m_imsExposureTime = objCaptureParams.value("millisecExposureTime", 0);
+            m_imsExpTime = objCaptureParams.value("millisecExposureTime", 0);
             m_iCaptureFrame = objCaptureParams.value("CaptureFrame", 0);
             m_iBinningType = objCaptureParams.value("BinningType", 0);
             m_iOriginalWidth = objCaptureParams.value("OriginalWidth", 0);
@@ -203,6 +219,20 @@ struct CaptureConfig {
             m_iCaptureAreaTop = objCaptureParams.value("CaptureAreaTop", 0);
             m_iCaptureAreaWidth = objCaptureParams.value("CaptureAreaWidth", 0);
             m_iCaptureAreaHeight = objCaptureParams.value("CaptureAreaHeight", 0);
+
+            // 結果をログに出力する。
+            LOG_INPROGRESSF("l7qt| Loaded CaptureConfig for");
+            LOG_INPROGRESSF("steJ|    ProductCode      : %s", strProductCode.c_str());
+            LOG_INPROGRESSF("bI88|    GainType         : %d", m_iGainType);
+            LOG_INPROGRESSF("PPPL|    ExposureTime     : %d ms", m_imsExpTime);
+            LOG_INPROGRESSF("HiSV|    CaptureFrame     : %d", m_iCaptureFrame);
+            LOG_INPROGRESSF("3sGX|    BinningType      : %d", m_iBinningType);
+            LOG_INPROGRESSF("KuNk|    OriginalWidth    : %d", m_iOriginalWidth);
+            LOG_INPROGRESSF("DpL2|    OriginalHeight   : %d", m_iOriginalHeight);
+            LOG_INPROGRESSF("6TdK|    CaptureAreaLeft  : %d", m_iCaptureAreaLeft);
+            LOG_INPROGRESSF("2NYy|    CaptureAreaTop   : %d", m_iCaptureAreaTop);
+            LOG_INPROGRESSF("jrHQ|    CaptureAreaWidth : %d", m_iCaptureAreaWidth);
+            LOG_INPROGRESSF("Smr3|    CaptureAreaHeight: %d", m_iCaptureAreaHeight);
         }
 
         catch (const std::exception& error) {

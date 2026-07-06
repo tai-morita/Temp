@@ -25,9 +25,9 @@ class CHBIDeviceCtrl
 private:
 
 	void* m_hHBI;                             // HBISDK のハンドル。これで SDK の関数を呼び出す。
-	bool  m_bIsHBIInitialized;                // 初期化されているか示すフラグ。
-	uint16_t* m_pImageBuffer;                 // 画像バッファのポインタ。
-	size_t m_iImageBufferSize;                // 画像バッファのサイズ。
+	bool  m_bIsInitialized;                   // 初期化されているか示すフラグ。
+	uint16_t* m_pImageBuffer;                 // 画像バッファの先頭アドレスを指すポインタ。
+	size_t m_szImageBufferSize;               // 画像バッファのサイズ。
 	bool m_bIsCapturing;                      // 画像取得中かどうかを示すフラグ。
 	int m_iFrameCounter;                      // 取得したフレーム数をカウントする。
 	int m_iCaptureFrame;                      // 取得するフレームの総数。
@@ -42,17 +42,16 @@ public:
 	// コンストラクタ。
 	CHBIDeviceCtrl()
 		: m_hHBI(nullptr)
-		, m_bIsHBIInitialized(false)
+		, m_bIsInitialized(false)
 		, m_bIsCapturing(false)
 		, m_iFrameCounter(0)
 		, m_iCaptureFrame(0)
 		, m_iImageWidth(0)
 		, m_iImageHeight(0)
 		, m_pImageBuffer(nullptr)
-		, m_iImageBufferSize(0)
+		, m_szImageBufferSize(0)
 		, m_strProductCode("")
 	{
-		LOG_BEGINF0(7, "KwCZ| HBIDeviceCtrl::HBIDeviceCtrl()");
 	}
 
 	// デストラクタ。
@@ -60,12 +59,12 @@ public:
 	{
 		LOG_BEGINF0(7, "EFg7| HBIDeviceCtrl::~HBIDeviceCtrl()");
 		if (IsCapturing()) {
-			LOG_INPROGRESSF("Stopping capture before destruction.");
+			LOG_INPROGRESSF("2DfC| Stopping capture before destruction.");
 			StopCapture();
 		}
-		if (IsHBIInitialized()) {
+		if (IsInitialized()) {
 			HBI_Destroy(m_hHBI);
-			m_bIsHBIInitialized = false;
+			m_bIsInitialized = false;
 		}
 		if (m_pImageBuffer != nullptr) {
 			m_pImageBuffer = nullptr;
@@ -75,95 +74,19 @@ public:
 
 public:
 	// CapturerHBIDlg.cpp からアクセスするためのゲッターメソッド。
-	const size_t GetImageBuf()                 const { return m_iImageBufferSize; } // 画像を取得したバッファサイズを返す。
-	const CArray4D<uint16_t>& GetImageBuffer() const { return m_a4duiImageBuffer; } // 取得した画像データを返す。
+	const size_t GetImageBuf()                 const { return m_szImageBufferSize; } // 画像を取得したバッファサイズを返す。
+	const CArray4D<uint16_t>& GetImageBuffer() const { return m_a4duiImageBuffer; }  // 取得した画像データを返す。
 	const int GetImageWidth()  const { return m_iImageWidth; }      // 画像の幅を返す。
 	const int GetImageHeight() const { return m_iImageHeight; }     // 画像の高さを返す。
-
 	/**
-	 * @brief デバイスに接続する。関数を実行する。
-	 * @note  IPアドレスを char* 型に変換して、ConnectDevice(char*, unsigned short, char*, unsigned short) を呼び出す。
-	 *        HBI_ConnectDetectorJumbo() が char* 型を要求するため、string* 型の文字列を char* 型に変換する必要がある。
-	*/
-	bool ConnectDevice(std::string* pstrDestIpAddr, const unsigned short kusDestPORT, std::string* pstrSrcIpAddr, const unsigned short kusSrcPort) {
-		bool bIsSuccess = false;
-		// SDK に渡すIPアドレスは const ではないため、メモリを確保して char* 型に変換する。
-		size_t iDestIpAddrBuffLen = pstrDestIpAddr->length() + 1;
-		size_t iSrcIpAddrBuffLen  = pstrSrcIpAddr->length() + 1;
-		char* pcDestIpAddr = new char[iDestIpAddrBuffLen];
-		char* pcSrcIpAddr  = new char[iSrcIpAddrBuffLen];
-		memcpy_s(pcDestIpAddr, iDestIpAddrBuffLen, pstrDestIpAddr->c_str(), iDestIpAddrBuffLen);
-		memcpy_s(pcSrcIpAddr , iSrcIpAddrBuffLen , pstrSrcIpAddr ->c_str(), iSrcIpAddrBuffLen);
-		bool iResult = ConnectDevice(pcDestIpAddr, kusDestPORT, pcSrcIpAddr, kusSrcPort);
-		if (IsSuccess(iResult)) { bIsSuccess = true; }
-		else                    { bIsSuccess = false; }
-		// メモリを解放する。
-		delete[] pcDestIpAddr;
-		delete[] pcSrcIpAddr;
-		return bIsSuccess;
-	}
-	/**
-	 * @brief SDK の初期化を行う。
-	 */
-	bool Initialize() {
-		LOG_BEGINF0(7, "HIAb| HBIDeviceCtrl::Initialize()");
-		if (IsHBIInitialized()) {
-			LOG_INPROGRESSF("gJOK| HBI is already initialized.");
-			return false;
-		}
-		// 初期化処理
-		m_hHBI = HBI_Init(0);
-		if (!m_hHBI) { m_bIsHBIInitialized = false; }
-		else         { m_bIsHBIInitialized = true; }
-		return m_bIsHBIInitialized;
-	}
-	/**
-	 * @brief SDK のイベントコールバック関数を設定する。
-	 * @note イベントが起こった時、SDK が UserHBICallback を呼び出す。
-	 */
-	void SetCallbackFunction() { HBI_RegEventCallBackFun(m_hHBI, UserHBICallback, this); }
-	/**
-	 * @brief  Jumbo Packet でデバイスに接続する。
-	 * @param  pcDestIPAddr FPD の IP アドレス。
-	 * @param  kusDestPort  FPD のポート番号。
-	 * @param  pcSrcIPAddr  PC の IP アドレス。
-	 * @param  kusSrcPort   PC のポート番号。
-	 * @return 接続に成功した場合は true、失敗した場合は false。
-	 */
-	bool ConnectDevice(char* pcDestIpAddr, const unsigned short kusDestPORT, char* pcSrcIpAddr, const unsigned short kusSrcPort) {
-		LOG_BEGINF0(7, "MHyd| HBIDeviceCtrl::ConnectDevice()");
-		if (!IsHBIInitialized()) { return false; }
-		int iResult = HBI_ConnectDetectorJumbo(m_hHBI, pcDestIpAddr, kusDestPORT, pcSrcIpAddr, kusSrcPort, 0);
-		if (!IsSuccess(iResult)) {
-			return false;
-		}
-		LOG_INPROGRESSF("ybDD| Connected to the device successfully.");
-		return true;
-	}
-
-	/**
-	 * @brief デバイスが接続されているか確認する。
-	 * @return 接続されている場合は true、接続されていない場合は false。
-	 */
-	bool IsConnected() {
-		LOG_BEGINF0(7, "RB58| HBIDeviceCtrl::IsConnected()");
-		if (!IsHBIInitialized()) { return false; }
-		int iResult = HBI_IsConnect(m_hHBI);
-		if (!iResult) {
-			LOG_INPROGRESSF("5Iva| Device is not connected.");
-			return false;
-		}
-		LOG_INPROGRESSF("FKXJ| Device is connected.");
-		return true;
-	}
-	/**
-	 * @brief デバイスのシリアル番号を取得する。
+	 * @brief  デバイスのシリアル番号を取得する。
 	 * @return 取得に成功した場合はシリアル番号の文字列、失敗した場合は空文字列。
 	 */
-	std::string GetFPDSerialNumber() {
+	std::string GetFPDSerialNumber() const {
 		LOG_BEGINF0(7, "uHRU| HBIDeviceCtrl::GetFPDSerialNumber()");
 		// パネルの情報を取得する。
-		if (!m_bIsHBIInitialized) { return ""; }
+		if (!m_bIsInitialized) { return ""; }
+		// シリアルは 13 文字 + NULL 文字の 14 bytes で取得する。
 		char cSerialNumber[14] = { 0 };
 		int iResult = HBI_GetFPDSerialNumber(m_hHBI, cSerialNumber);
 		if (!IsSuccess(iResult)) {
@@ -173,79 +96,186 @@ public:
 		return std::string(cSerialNumber);
 	}
 	/**
-	 * @brief デバイスの製品コードを取得する。
+	 * @brief  デバイスの製品コードを取得する。
 	 * @return 取得に成功した場合は製品コードの文字列、失敗した場合は空文字列。
 	 */
 	std::string GetFPDProductCode() {
 		LOG_BEGINF0(7, "gYAK| HBIDeviceCtrl::GetFPDProductCode()");
-		if (!m_bIsHBIInitialized) { return ""; }
-		char pcProductCode[128] = { 0 };
-		int iResult = HBI_GetHbiProductCode(m_hHBI, pcProductCode);
+		if (!m_bIsInitialized) { return ""; }
+		// 16 文字 + NULL 文字の 17 bytes 以上確保する必要がある。
+		// 最大サイズはDTに確認中。
+		char cProductCode[128] = { 0 };
+		int iResult = HBI_GetHbiProductCode(m_hHBI, cProductCode);
 		if (!IsSuccess(iResult)) {
 			return "";
 		}
-		m_strProductCode = std::string(pcProductCode);
+		m_strProductCode = std::string(cProductCode);
 		LOG_INPROGRESSF("9ia7| FPD Product Code: %s", m_strProductCode.c_str());
 		return m_strProductCode;
 	}
 	/**
-	 * @brief SDK のバージョンを取得する。
-	 * @return 取得に成功した場合は SDK のバージョンの文字列、失敗した場合は空文字列。
+	 * @brief  SDK のバージョンを取得する。
+	 * @return true: 取得に成功, false: 取得に失敗
 	 */
-	std::string GetSDKVersion() {
+	std::string GetSDKVersion() const {
 		LOG_BEGINF0(7, "Clfj| HBIDeviceCtrl::GetSDKVersion()");
-		if (!m_bIsHBIInitialized) { return ""; }
-		char pcSDKVersion[128] = { 0 };
-		int iResult = HBI_GetSDKVerion(m_hHBI, pcSDKVersion);
+		if (!m_bIsInitialized) { return ""; }
+		// 配列の長さは 64 以上確保する必要がある。
+		char cSDKVersion[128] = { 0 };
+		int iResult = HBI_GetSDKVerion(m_hHBI, cSDKVersion);
 		if (!IsSuccess(iResult)) {
 			return "";
 		}
-		LOG_INPROGRESSF("5HdC| SDK Version: %s", pcSDKVersion);
-		return std::string(pcSDKVersion);
+		LOG_INPROGRESSF("5HdC| SDK Version: %s", cSDKVersion);
+		return std::string(cSDKVersion);
+	}
+
+public:
+	/**
+	 * @brief デバイスに接続する。関数を実行する。
+	 * @note  IPアドレスを char* 型に変換して、ConnectDevice(char*, unsigned short, char*, unsigned short) を呼び出す。
+	 *        HBI_ConnectDetectorJumbo() が char* 型を要求するため、string* 型の文字列を char* 型に変換する必要がある。
+	*/
+	bool ConnectDevice(const std::string* pstrDestIpAddr, const unsigned short kusDestPORT, const std::string* pstrSrcIpAddr, const unsigned short kusSrcPort) {
+		LOG_BEGINF0(7, "GUGw| HBIDeviceCtrl::ConnectDevice()");
+		bool bIsSuccess = false;
+		// SDK に渡すIPアドレスは const ではないため、メモリを確保して char* 型に変換する。
+		const size_t szDestIpAddrBuffLen = pstrDestIpAddr->length() + 1;
+		const size_t szSrcIpAddrBuffLen = pstrSrcIpAddr->length() + 1;
+		char* pcDestIpAddr = new char[szDestIpAddrBuffLen];
+		char* pcSrcIpAddr = new char[szSrcIpAddrBuffLen];
+		memcpy_s(pcDestIpAddr, szDestIpAddrBuffLen, pstrDestIpAddr->c_str(), szDestIpAddrBuffLen);
+		memcpy_s(pcSrcIpAddr, szSrcIpAddrBuffLen, pstrSrcIpAddr->c_str(), szSrcIpAddrBuffLen);
+
+		bool iResult = ConnectDevice(pcDestIpAddr, kusDestPORT, pcSrcIpAddr, kusSrcPort);
+		if (iResult) { bIsSuccess = true; }
+		else { bIsSuccess = false; }
+		// メモリを解放する。
+		delete[] pcDestIpAddr;
+		delete[] pcSrcIpAddr;
+		return bIsSuccess;
 	}
 	/**
+	 * @brief  デバイスの接続を切断する。
+	 * @note   m_hHBI が持っているハンドルはここで解放される。
+	 */
+	bool DisconnectDevice() {
+		LOG_BEGINF0(7, "gN20| HBIDeviceCtrl::DisconnectDevice()");
+
+		if (m_bIsCapturing) {
+			LOG_INPROGRESSF("2ycH| Stopping capture before disconnecting device.");
+			StopCapture();
+		}
+
+		if (m_pImageBuffer != nullptr) {
+			LOG_INPROGRESSF("9NVM| Releasing image buffer.");
+			m_pImageBuffer = nullptr;
+		}
+
+		if (!IsDeviceConnected()) {
+			return true; // すでに接続されていない場合は切断する必要はない。
+		}
+
+		if (IsInitialized()) {
+			LOG_INPROGRESSF("OtZV| Release HBI handle.");
+			HBI_Destroy(m_hHBI);
+			// 未初期化状態にする
+			m_hHBI = nullptr;
+			m_bIsInitialized = false;
+		}
+		return true;
+	}
+
+	/**
+	 * @brief  SDK の初期化を行う。
+	 * @return true: 成功, false: 失敗
+	 */
+	bool Initialize() {
+		LOG_BEGINF0(7, "HIAb| HBIDeviceCtrl::Initialize()");
+		if (IsInitialized()) {
+			LOG_INPROGRESSF("gJOK| HBI is already initialized.");
+			return false;
+		}
+		// 初期化処理
+		m_hHBI = HBI_Init(0);
+		if (!m_hHBI) { m_bIsInitialized = false; }
+		else { m_bIsInitialized = true; }
+		return m_bIsInitialized;
+	}
+	/**
+	 * @brief SDK のイベントコールバック関数を設定する。
+	 * @note  イベントが起こった時、SDK が UserHBICallback を呼び出す。
+	 */
+	void SetCallbackFunction() { HBI_RegEventCallBackFun(m_hHBI, UserHBICallback, this); }
+
+	/**
+	 * @brief  デバイスが接続されているか確認する。
+	 * @return true: 接続されている, false: 接続されていない
+	 */
+	bool IsDeviceConnected() const {
+		LOG_BEGINF0(7, "RB58| HBIDeviceCtrl::IsConnected()");
+		if (!IsInitialized()) { return false; }
+		int iResult = HBI_IsConnect(m_hHBI);
+		if (!iResult) {
+			LOG_INPROGRESSF("5Iva| Device is not connected.");
+			return false;
+		}
+		LOG_INPROGRESSF("FKXJ| Device is connected.");
+		return true;
+	}
+
+	/**
 	 * @brief  現在のキャプチャパラメータをログに出力する。
-	 * @return すべてのパラメータの取得に成功した場合は true、どこかで取得に失敗した場合は false。
+	 * @return true: 出力に成功, false: 出力に失敗
 	 * @note   デバッグとして使用する。
 	 */
-	bool PrintCaptureParams() {
+	bool PrintCaptureParams() const {
 		LOG_BEGINF0(7, "KaJ2| HBIDeviceCtrl::PrintCaptureParams()");
-		if (!m_bIsHBIInitialized) { return false; }
-		int iResult;
-		// GainType: HBI_GetPGALevel の戻り値は GainType (1 ～ 11) が成功。
-		int iGainType = HBI_GetPGALevel(m_hHBI);
-		if (!iGainType) {
-			LOG_INPROGRESSF("lMOT| HBI_GetPGALevel failed. iGainType=%d", iGainType);
-			return false;
-		}
-		// iBinningType の値は 1: 1x1, 2: 2x2, 3: 3x3, 4: 4x4。
-		unsigned int uiBinningType;
-		iResult = HBI_GetBinning(m_hHBI, &uiBinningType);
-		if (!IsSuccess(iResult)) {
-			return false;
-		}
-		// uiCaptureAreaLeft, uiCaptureAreaTop, uiCaptureAreaWidth, uiCaptureAreaHeight はそれぞれ左上の座標と幅、高さを表し。
-		// それぞれの変数に値が格納される。
-		unsigned int uiCaptureAreaLeft, uiCaptureAreaTop, uiCaptureAreaWidth, uiCaptureAreaHeight;
-		iResult = HBI_GetCurZoomRect(m_hHBI, &uiCaptureAreaLeft, &uiCaptureAreaTop, &uiCaptureAreaWidth, &uiCaptureAreaHeight);
-		if (!IsSuccess(iResult)) {
-			return false;
-		}
-		// imsExpTime は Exposure time をミリ秒単位で表す。
-		int imsExpTime;
-		iResult = HBI_GetSelfDumpingTime(m_hHBI, &imsExpTime);
-		if (!IsSuccess(iResult)) {
-			return false;
-		}
-		// 出力用に fps を計算する。
-		float ffps    = 1.0f / static_cast<float>(imsExpTime) * 1000.0f;
-		// 取得したパラメータをログに出力する。
+		if (!m_bIsInitialized) { return false; }
 		LOG_INPROGRESSF("7Lb7| Current capture parameters:");
-		LOG_INPROGRESSF("md4X|   Binning Type      : %u"      , uiBinningType);
-		LOG_INPROGRESSF("eRFD|   Gain Type         : %d"      , iGainType);
-		LOG_INPROGRESSF("1UKJ|   Exposure Time (ms): %d ms"   , imsExpTime);
-		LOG_INPROGRESSF("6aqO|   Frame per Second  : %.2f fps", ffps);
-		LOG_INPROGRESSF("1YIe|   Capture Area      : (Left, Top) = (%u, %u) , Width x Height = %u x %u", uiCaptureAreaLeft, uiCaptureAreaTop, uiCaptureAreaWidth, uiCaptureAreaHeight);
+		int iResult;
+		{
+			// GainType: 1 ～ 11 の値を返す。
+			int iGainType = HBI_GetPGALevel(m_hHBI);
+			if (!iGainType) {
+				LOG_INPROGRESSF("lMOT| HBI_GetPGALevel failed.");
+				return false;
+			}
+			LOG_INPROGRESSF("eRFD|   Gain Type         : %d", iGainType);
+		}
+		{
+			// iBinningType の値は 1: 1x1, 2: 2x2, 3: 3x3, 4: 4x4。
+			unsigned int uiBinningType;
+			iResult = HBI_GetBinning(m_hHBI, &uiBinningType);
+			if (!IsSuccess(iResult)) {
+				return false;
+			}
+			LOG_INPROGRESSF("md4X|   Binning Type      : %u", uiBinningType);
+		}
+		{
+			// uiCaptureAreaLeft, uiCaptureAreaTop, uiCaptureAreaWidth, uiCaptureAreaHeight はそれぞれ左上の座標と幅、高さを表し。
+			// それぞれの変数に値が格納される。
+			unsigned int uiCaptureAreaLeft, uiCaptureAreaTop, uiCaptureAreaWidth, uiCaptureAreaHeight;
+			iResult = HBI_GetCurZoomRect(m_hHBI, &uiCaptureAreaLeft, &uiCaptureAreaTop, &uiCaptureAreaWidth, &uiCaptureAreaHeight);
+			if (!IsSuccess(iResult)) {
+				return false;
+			}
+			LOG_INPROGRESSF("1YIe|   Capture Area      : (Left, Top) = (%u, %u) , Width x Height = %u x %u", uiCaptureAreaLeft, uiCaptureAreaTop, uiCaptureAreaWidth, uiCaptureAreaHeight);
+		}
+		{
+			// imsExpTime は Exposure time をミリ秒単位で表す。
+			int imsExpTime;
+			{
+				iResult = HBI_GetSelfDumpingTime(m_hHBI, &imsExpTime);
+				if (!IsSuccess(iResult)) {
+					return false;
+				}
+			}
+			// 出力用に fps を計算する。
+			float ffps = 1.0f / static_cast<float>(imsExpTime) * 1000.0f;
+			LOG_INPROGRESSF("1UKJ|   Exposure Time (ms): %d ms", imsExpTime);
+			LOG_INPROGRESSF("6aqO|   Frame Rate (fps)  : %.2f fps", ffps);
+		}
 		return true;
 	}
 
@@ -261,137 +291,151 @@ public:
 	 * @param  iCaptureAreaTop     キャプチャ領域の左上の Y 座標。
 	 * @param  iCaptureAreaWidth   キャプチャ領域の幅。
 	 * @param  iCaptureAreaHeight  キャプチャ領域の高さ。
-	 * @return すべてのパラメータの設定に成功した場合は true、どこかで設定に失敗した場合は false。
+	 * @return true: 設定に成功, false: 設定に失敗
 	 * @note   3030z デュアル読出しのため、Width はフルエリア、Height は中心から等間隔にオフセットする必要がある。
 	 *         現在 3030z の採用予定はない。
 	 *         2520Z は Height 方向のみオフセットが可能。
 	 */
 	bool SetCaptureParams(struct CaptureConfig& captureConfig) {
 		LOG_BEGINF0(7, "t4Jj| HBIDeviceCtrl::SetCaptureParams()");
-		if (!IsHBIInitialized()) { return false; }
+		if (!IsInitialized()) { return false; }
 		// 取得フレーム数。
 		SetCaptureFrame(captureConfig.m_iCaptureFrame);
 
-		// GainType。
-		int iResult = HBI_MSetPGALevel(m_hHBI, captureConfig.m_iGainType);
-		if (!IsSuccess(iResult)) {
-			return false;
+		int iResult;
+		{
+			// GainType。
+			LOG_INPROGRESSF("oWAx| Setting GainType     to %d", captureConfig.m_iGainType);
+			iResult = HBI_MSetPGALevel(m_hHBI, captureConfig.m_iGainType);
+			if (!IsSuccess(iResult)) {
+				return false;
+			}
 		}
-
-		// Binning。
-		iResult = HBI_MSetBinning(m_hHBI, captureConfig.m_iBinningType);
-		if (!IsSuccess(iResult)) {
-			return false;
+		{
+			// Binning。
+			LOG_INPROGRESSF("cpe2| Setting BinningType  to %d", captureConfig.m_iBinningType);
+			iResult = HBI_MSetBinning(m_hHBI, captureConfig.m_iBinningType);
+			if (!IsSuccess(iResult)) {
+				return false;
+			}
 		}
-
-		// Exposure time (= 1/fps)。
-		iResult = HBI_MSetSelfDumpingTime(m_hHBI, captureConfig.m_imillisecExposureTime);
-		if (!IsSuccess(iResult)) {
-			return false;
+		{
+			// Exposure time (= 1/fps)。
+			LOG_INPROGRESSF("VJPA| Setting ExposureTime to %d ms", captureConfig.m_imsExpTime);
+			iResult = HBI_MSetSelfDumpingTime(m_hHBI, captureConfig.m_imsExpTime);
+			if (!IsSuccess(iResult)) {
+				return false;
+			}
 		}
-
-		/* ROI の設定。
-		* 横方向は設定ができない。
-		* 3030zはデュアル読出しのため、中央から等間隔にオフセットする必要がある。そのため縦方向のサイズは偶数である必要がある。
-		* 2520zはシングル読出しのため、縦方向のオフセットは自由にできる。
-		* uleft, utop, uright, ubottom = 0 の時はフルサイズとなる。
-		*/
-		CMOS_ZOOM_RECT hbiCaptureArea;
-		if (m_strProductCode == "X-Panel3030zFDM") {
-			hbiCaptureArea.utop = (captureConfig.m_iOriginalHeight - captureConfig.m_iCaptureAreaHeight) / 2;
-			hbiCaptureArea.ubottom = hbiCaptureArea.utop + captureConfig.m_iCaptureAreaTop - 1;
-			hbiCaptureArea.uleft = 0;
-			hbiCaptureArea.uright = 0;
-		}
-		else {
-			hbiCaptureArea.utop = captureConfig.m_iCaptureAreaTop;
-			hbiCaptureArea.ubottom = captureConfig.m_iCaptureAreaTop + captureConfig.m_iCaptureAreaHeight - 1;
-			hbiCaptureArea.uleft = captureConfig.m_iCaptureAreaLeft;
-			hbiCaptureArea.uright = captureConfig.m_iCaptureAreaLeft + captureConfig.m_iCaptureAreaWidth - 1;
-		}
-		// ZoomWidth, ZoomHeight が 0 の時はフルサイズになるようにする。
-		if (captureConfig.m_iCaptureAreaWidth == 0) {
-			hbiCaptureArea.uleft = 0;
-			hbiCaptureArea.uright = 0;
-		}
-		if (captureConfig.m_iCaptureAreaHeight == 0) {
-			hbiCaptureArea.utop = 0;
-			hbiCaptureArea.ubottom = 0;
-		}
-		iResult = HBI_MSetZoomModeRect(m_hHBI, hbiCaptureArea);
-		if (!IsSuccess(iResult)) {
-			return false;
+		{
+			/* ROI の設定。
+			* 横方向は設定ができない。
+			* 3030zはデュアル読出しのため、中央から等間隔にオフセットする必要がある。そのため縦方向のサイズは偶数である必要がある。
+			* 2520zはシングル読出しのため、縦方向のオフセットは自由にできる。
+			* uleft, utop, uright, ubottom = 0 の時はフルサイズとなる。
+			*/
+			CMOS_ZOOM_RECT hbiCaptureArea;
+			if (m_strProductCode == "X-Panel3030zFDM") {
+				hbiCaptureArea.utop = (captureConfig.m_iOriginalHeight - captureConfig.m_iCaptureAreaHeight) / 2;
+				hbiCaptureArea.ubottom = hbiCaptureArea.utop + captureConfig.m_iCaptureAreaTop - 1;
+				hbiCaptureArea.uleft = 0;
+				hbiCaptureArea.uright = 0;
+			}
+			else {
+				hbiCaptureArea.utop = captureConfig.m_iCaptureAreaTop;
+				hbiCaptureArea.ubottom = captureConfig.m_iCaptureAreaTop + captureConfig.m_iCaptureAreaHeight - 1;
+				hbiCaptureArea.uleft = 0;
+				hbiCaptureArea.uright = 0;
+			}
+			// ZoomWidth, ZoomHeight が 0 の時はフルサイズになるようにする。
+			if (captureConfig.m_iCaptureAreaWidth == 0) {
+				hbiCaptureArea.uleft = 0;
+				hbiCaptureArea.uright = 0;
+			}
+			if (captureConfig.m_iCaptureAreaHeight == 0) {
+				hbiCaptureArea.utop = 0;
+				hbiCaptureArea.ubottom = 0;
+			}
+			LOG_INPROGRESSF("TKz2| Setting CaptureArea  to (Left, Top) = (%d, %d), (Right, Bottom) = (%d, %d)",
+				hbiCaptureArea.uleft, hbiCaptureArea.utop, hbiCaptureArea.uright, hbiCaptureArea.ubottom);
+			iResult = HBI_MSetZoomModeRect(m_hHBI, hbiCaptureArea);
+			if (!IsSuccess(iResult)) {
+				return false;
+			}
 		}
 		return true;
 	}
 
 	/**
-	 * @brief  取得するフレーム数に対して画像バッファを確保する。
+	 * @brief  取得するフレーム数に応じて画像バッファを確保する。
 	 * @param  iCaptureFrame 取得するフレーム数。
-	 * @return 画像バッファの確保に成功した場合は true、失敗した場合は false。
+	 * @return true: バッファの確保に成功, false: バッファの確保に失敗
 	 * @note   画像バッファは m_a4duiImageBuffer に確保される。バッファのサイズは m_iImageWidth * m_iImageHeight * iCaptureFrame。
 	 */
-	bool AllocateImageBuffer(int iCaptureFrame) {
-		// 未初期化、未接続、未撮影の場合はバッファを確保しない。
+	bool AllocateImageBuffer(const int kiCaptureFrame) {
+		// 未初期化、未接続、撮影中の場合はバッファを確保しない。
 		LOG_BEGINF0(7, "Hef4| HBIDeviceCtrl::AllocateImageBuffer()");
-		if (!IsHBIInitialized()
-			|| !IsConnected()
-			|| IsCapturing()) {
-			LOG_INPROGRESSF("qvrL| Cannot allocate image buffer. Invalid state: IsHBIInitialized=%d, IsConnected=%d, IsCapturing=%d",
-				IsHBIInitialized(), IsConnected(), IsCapturing());
+		if (!(IsInitialized() && IsDeviceConnected() && !IsCapturing())) {
+			LOG_INPROGRESSF("qvrL| Cannot allocate image buffer. Invalid state: IsInitialized=%d, IsConnected=%d, IsCapturing=%d",
+				IsInitialized(), IsDeviceConnected(), IsCapturing());
 			return false;
 		}
 
 		// 画像バッファを確保する。
 		// どれかの値が 0 の場合はバッファを確保しない。
-		if (!m_iImageWidth || !m_iImageHeight || !iCaptureFrame) {
+		if (!m_iImageWidth || !m_iImageHeight || !kiCaptureFrame) {
 			LOG_INPROGRESSF("BmI3| Cannot allocate image buffer. Invalid parameters: Width=%d, Height=%d, CaptureFrame=%d",
-				m_iImageWidth, m_iImageHeight, iCaptureFrame);
+				m_iImageWidth, m_iImageHeight, kiCaptureFrame);
 			return false;
 		}
 
-		m_a4duiImageBuffer.Resize(0, m_iImageWidth - 1, 0, m_iImageHeight - 1, 0, 0, 0, iCaptureFrame - 1, CArray4D<uint16_t>::R_CLEAR);
-		m_iImageBufferSize = m_a4duiImageBuffer.BufferLen();
+		// 画像バッファを確保する。
+		// 画像は4次元配列(X, Y, Z, T)で、フレーム方向はT次元で表す。
+		m_a4duiImageBuffer.Resize(0, m_iImageWidth - 1, 0, m_iImageHeight - 1, 0, 0, 0, kiCaptureFrame - 1, CArray4D<uint16_t>::R_CLEAR);
+		m_szImageBufferSize = m_a4duiImageBuffer.BufferLen();
 		m_pImageBuffer = m_a4duiImageBuffer.PTable();
 
 		LOG_INPROGRESSF("HS4r| Allocated image buffer of size: %zu (Width=%d, Height=%d, CaptureFrame=%d)",
-			m_iImageBufferSize, m_iImageWidth, m_iImageHeight, iCaptureFrame);
+			m_szImageBufferSize, m_iImageWidth, m_iImageHeight, kiCaptureFrame);
 		return true;
 	}
 
 	/**
-	 * @brief  画像のサイズを取得してメンバ変数に
-	 * @return 画像のサイズの取得に成功した場合は true、失敗した場合は false。
+	 * @brief  画像のサイズを取得してメンバ変数を更新する。
+	 * @return true: 取得に成功, false: 取得に失敗
 	 * @note   画像のサイズは m_iImageWidth, m_iImageHeight に格納される。
+	 *         取得に失敗した場合は m_iImageWidth, m_iImageHeight を 0 に設定される。
 	 */
 	bool UpdateImageProperties() {
 		LOG_BEGINF0(7, "GI8J| HBIDeviceCtrl::UpdateImageProperties()");
-		if (!IsHBIInitialized()) { return false; }
+		if (!IsInitialized()) { return false; }
 
 		IMAGE_PROPERTY hbiImageProperty; // FPD プロパティの構造体
 		int iResult = HBI_GetImageProperty(m_hHBI, &hbiImageProperty);
-		m_iImageWidth = hbiImageProperty.nwidth;
-		m_iImageHeight = hbiImageProperty.nheight;
 		if (!IsSuccess(iResult)) {
+			m_iImageWidth = 0;
+			m_iImageHeight = 0;
 			return false;
 		}
+		m_iImageWidth = hbiImageProperty.nwidth;
+		m_iImageHeight = hbiImageProperty.nheight;
 		LOG_INPROGRESSF("NaxT| Image Properties: Width=%d, Height=%d", m_iImageWidth, m_iImageHeight);
 		return true;
 	}
 
 	/**
 	 * @brief  画像取得を開始する。
-	 * @return 画像取得の開始に成功した場合は true、失敗した場合は false。
+	 * @return true: 取得の開始に成功, false: 取得の開始に失敗
 	 * @note   LIVE_ACQ_DEFAULT_TYPE は HBIASDK のライブキャプチャモード。
 	 */
 	bool StartCapture() {
 		LOG_BEGINF0(7, "2Fbj| HBIDeviceCtrl::StartCapture()");
-		FPD_AQC_MODE hbi_aqc_mode;
-		hbi_aqc_mode.eAqccmd = LIVE_ACQ_DEFAULT_TYPE;
+		FPD_AQC_MODE hbiAqcMode;
+		hbiAqcMode.eAqccmd = LIVE_ACQ_DEFAULT_TYPE;
 
-		if (!IsHBIInitialized()) { return false; }
-		m_iFrameCounter = 0;
-		int iResult = HBI_LiveAcquisition(m_hHBI, hbi_aqc_mode);
+		if (!IsInitialized()) { return false; }
+		m_iFrameCounter = 0; // フレームカウンタをリセットする。
+		int iResult = HBI_LiveAcquisition(m_hHBI, hbiAqcMode);
 		if (!IsSuccess(iResult)) {
 			return false;
 		}
@@ -402,79 +446,77 @@ public:
 
 	/**
 	 * @brief  画像取得を停止する。
-	 * @return 画像取得の停止に成功した場合は true、失敗した場合は false。
+	 * @return true: 停止に成功, false: 停止に失敗
 	 */
 	bool StopCapture() {
 		LOG_BEGINF0(7, "iyUw| HBIDeviceCtrl::StopCapture()");
-		if (!IsHBIInitialized()) { return false; }
+		if (!IsInitialized()) { return false; }
 		HBI_StopAcquisition(m_hHBI);
 		m_bIsCapturing = false; // 画像取得中フラグを下げる。
 		LOG_INPROGRESSF("WxWg| Capture stopped successfully.");
 		return true;
 	}
 
-	// 画像取得中か判断する。
+	/**
+	 * @brief  画像取得中か判断する。
+	 */
 	bool IsCapturing() const { return m_bIsCapturing; }
 
+private:
 	/**
-	 * @brief  デバイスとの接続を切断し、SDK を終了する。
-	 * @return 接続の切断と SDK の終了に成功した場合は true、失敗した場合は false。
+	 * @brief  Jumbo Packet でデバイスに接続する。
+	 * @param  pcDestIPAddr FPD の IP アドレス。
+	 * @param  kusDestPort  FPD のポート番号。
+	 * @param  pcSrcIPAddr  PC の IP アドレス。
+	 * @param  kusSrcPort   PC のポート番号。
+	 * @return true: 接続に成功, false: 接続に失敗
 	 */
-	bool DisconnectDevice() {
-		// 画像取得中の場合は停止する。
-		LOG_BEGINF0(7, "Kx1G| HBIDeviceCtrl::DisconnectDevice()");
-		if (IsCapturing()) {
-			LOG_INPROGRESSF("RSti| Stopping capture before disconnecting device.");
-			StopCapture();
+	bool ConnectDevice(char* pcDestIpAddr, const unsigned short kusDestPORT, char* pcSrcIpAddr, const unsigned short kusSrcPort) {
+		LOG_BEGINF0(7, "MHyd| HBIDeviceCtrl::ConnectDevice()");
+		if (!IsInitialized()) { return false; }
+		int iResult = HBI_ConnectDetectorJumbo(m_hHBI, pcDestIpAddr, kusDestPORT, pcSrcIpAddr, kusSrcPort, 0);
+		if (!IsSuccess(iResult)) {
+			return false;
 		}
-		// 画像バッファを解放する。
-		if (m_pImageBuffer != nullptr) {
-			// delete[] m_pImageBuffer;
-			m_pImageBuffer = nullptr;
-		}
-
-		if (IsHBIInitialized()) {
-			HBI_Destroy(m_hHBI);
-			m_hHBI = nullptr;
-			m_bIsHBIInitialized = false;
-		}
+		LOG_INPROGRESSF("ybDD| Connected to the device successfully.");
 		return true;
 	}
-
-private:
-
 	/**
-	 * @brief HBI の関数の処理が成功したか否かを判定する。
+	 * @brief  HBI の関数の処理が成功したか否かを判定する。
 	 * @param  iResult HBI の関数の戻り値。
-	 * @return 成功した場合は true、失敗した場合は false。
+	 * @return true: 成功, false: 失敗
 	 */
-	bool IsSuccess(int iResult) const {
-		LOG_BEGINF0(7, "UCQS| HBIDeviceCtrl::IsSuccess()");
-		if (iResult == HBI_SUCCSS) {
+	bool IsSuccess(const int kiResult) const {
+		LOG_BEGINF0(2, "UCQS| HBIDeviceCtrl::IsSuccess()");
+		if (kiResult == HBI_SUCCSS) {
 			return true;
 		}
 		int iErrorCode = static_cast<int>(sizeof(CrErrStrList) / sizeof(CrErrStrList[0]));
-		LOG_INPROGRESSF("GFXI| HBI function failed. iErrorCode=%d, iResult=%d", iErrorCode, iResult);
-		const char* pcErrorMessage = HBI_GetError(CrErrStrList, iErrorCode, iResult);
+		LOG_INPROGRESSF("GFXI| HBI function failed. iErrorCode=%d, iResult=%d", iErrorCode, kiResult);
+		const char* pcErrorMessage = HBI_GetError(CrErrStrList, iErrorCode, kiResult);
 		LOG_INPROGRESSF("RJVh| Error message: %s", pcErrorMessage);
 		return false;
 	}
 
-	// 取得するフレーム数を設定する。
+	/**
+	 * @brif 取得するフレーム数を設定する。
+	 */
 	void SetCaptureFrame(int iCaptureFrame) { m_iCaptureFrame = iCaptureFrame; }
 
-	// HBI が初期化されているか判断する。
-	bool IsHBIInitialized() const { return m_bIsHBIInitialized; }
+	/**
+	 * @brif SDK が初期化されているか判断する。
+	 */
+	bool IsInitialized() const { return m_bIsInitialized; }
 
 	/**
 	 * @brief  画像データをバッファに保存する。
-	 * @param  pvParam1 SDK のイベントコールバック関数から渡される画像データのポインタ。
+	 * @param  pImageData 画像データのポインタ。
 	 * @return なし。
 	 * @note   コールバック関数から呼び出される。
 	 *         pvParam1 は IMAGE_DATA_ST 構造体のポインタ。
 	 *         databuff メンバに画像データが格納されている。
 	 */
-	void SaveImageBuffer(void* pvParam1) {
+	void SaveImageBuffer(const void* pImageData) {
 		LOG_BEGINF0(7, "KiH8| HBIDeviceCtrl::SaveImageBuffer()");
 		if (m_iFrameCounter >= m_iCaptureFrame) {
 			// 指定枚数撮影したので保存はしない。
@@ -483,15 +525,15 @@ private:
 			return;
 		}
 
-		// 取得した画像をバッファに保存するため、フレーム数だけオフセットする。
-		const size_t kiFramePixelCount = static_cast<size_t>(m_iImageWidth) * static_cast<size_t>(m_iImageHeight);
-		const size_t kiArea = static_cast<size_t>(m_iFrameCounter) * kiFramePixelCount;
+		// 取得したフレーム数だけオフセットする。
+		const int kiFramePixelCount = m_iImageWidth * m_iImageHeight;
+		const size_t kszOffsetBuffSize = static_cast<size_t>(m_iFrameCounter * kiFramePixelCount);
 
-		// IMAGE_DATA_ST構造体内のdatabuffに画像データがあるので、それをバッファにコピーする。
+		// IMAGE_DATA_ST 構造体内の databuff に画像データがあるので、それをバッファにコピーする。
 		memcpy_s(
-			m_pImageBuffer + kiArea,
-			m_iImageBufferSize * sizeof(uint16_t) - kiArea * sizeof(uint16_t), // バッファの残りサイズを計算する。
-			static_cast<IMAGE_DATA_ST*>(pvParam1)->databuff,
+			m_pImageBuffer + kszOffsetBuffSize,
+			(m_szImageBufferSize - kszOffsetBuffSize) * sizeof(uint16_t), // バッファの残りサイズを計算する。
+			pImageData,
 			kiFramePixelCount * sizeof(uint16_t)
 		);
 
@@ -507,19 +549,19 @@ private:
 	 * @param  ifpdId         デバイス ID。
 	 * @param  uceventId      イベント ID。
 	 * @param  peventParam1   イベントに関するパラメータ。
-	 * @param  ievantParam2   イベントに関するパラメータ。
-	 * @param  ievantParam3   イベントに関するパラメータ。
-	 * @param  ievantParam4   イベントに関するパラメータ。
+	 * @param  ieventParam2   イベントに関するパラメータ。
+	 * @param  ieventParam3   イベントに関するパラメータ。
+	 * @param  ieventParam4   イベントに関するパラメータ。
 	 */
 
 	static int UserHBICallback(
-		void* pContext,
+		void*         pContext,
 		int           ifpdId,
 		unsigned char uceventId,
-		void* peventParam1,
-		int           ievantParam2,
-		int           ievantParam3,
-		int           ievantParam4
+		void*         peventParam1,
+		int           ieventParam2,
+		int           ieventParam3,
+		int           ieventParam4
 	)
 	{
 		// SDK側で取得したポインタを CHBIDeviceCtrl クラスのオブジェクトのポインタとしてキャストする。
@@ -530,48 +572,45 @@ private:
 			ifpdId,
 			uceventId,
 			peventParam1,
-			ievantParam2,
-			ievantParam3,
-			ievantParam4
+			ieventParam2,
+			ieventParam3,
+			ieventParam4
 		);
 	}
 
 	/**
 	 * @brief  SDK のイベントコールバック関数から呼び出される実装関数。イベントに応じて処理を行う。
 	 * @param  ifpdId         デバイス ID。
-	 * @param  uceventId        イベント ID。
+	 * @param  uceventId      イベント ID。
 	 * @param  peventParam1   イベントに関するパラメータ
-	 * @param  ievantParam2   イベントに関するパラメータ
-	 * @param  ievantParam3   イベントに関するパラメータ
-	 * @param  ievantParam4   イベントに関するパラメータ
+	 * @param  ieventParam2   イベントに関するパラメータ
+	 * @param  ieventParam3   イベントに関するパラメータ
+	 * @param  ieventParam4   イベントに関するパラメータ
 	 * @return 1 を返す。
 	 */
 	int OnHBICallback(
 		int           ifpdId,
 		unsigned char uceventId,
-		void* peventParam1,
-		int           ievantParam2,
-		int           ievantParam3,
-		int           ievantParam4
+		void*         peventParam1,
+		int           ieventParam2,
+		int           ieventParam3,
+		int           ieventParam4
 	)
 	{
-		// LOG_BEGINF0(7, "6P6w| CHBIDeviceCtrl::OnHBICallback()");
+		LOG_BEGINF0(2, "6P6w| CHBIDeviceCtrl::OnHBICallback()");
 		// peventParam1 以外は使っていないが、 SDK の仕様上、引数として受け取る必要がある。
 		(void)ifpdId;
-		(void)ievantParam2;
-		(void)ievantParam3;
-		(void)ievantParam4;
+		(void)ieventParam2;
+		(void)ieventParam3;
+		(void)ieventParam4;
 		if (uceventId == ECALLBACK_TYPE_MULTIPLE_IMAGE) {
-			SaveImageBuffer(peventParam1);
-		}
-		if (uceventId == ECALLBACK_TYPE_SET_CFG_OK) {
-			// LOG_INPROGRESSF("fDCh| Set parameters successfully.");
-		}
-		if (uceventId == ECALLBACK_TYPE_PACKET_MISS) {
-			// LOG_INPROGRESSF("J0JU| Packet lost.");
-		}
-		if (uceventId == ECALLBACK_TYPE_BUFFER_WARNING) {
-			// LOG_INPROGRESSF("Sj3Y| Buffer warning.");
+			// SDK から画像データが送られてきた場合、peventParam1 に IMAGE_DATA_ST 構造体のポインタが渡される。
+			const void* pImageData = static_cast<IMAGE_DATA_ST*>(peventParam1)->databuff;
+			if (!pImageData) {
+				LOG_INPROGRESSF("Received null image data pointer.");
+				return 0;
+			}
+			SaveImageBuffer(pImageData);
 		}
 		return 1;
 	}
