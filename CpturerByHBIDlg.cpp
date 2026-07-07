@@ -43,7 +43,7 @@ void SaveImage(const CArray4D<uint16_t> a4duiImage, const int kiImageWidth, cons
         LOG_INPROGRESSF("VNmm|  a4duiImage.BufferLen() = %d", a4duiImage.BufferLen());
         return;
     }
-    LOG_INPROGRESSF("Oqj2| Saving image data: TotalFrame = %d, Height = %d, Width = %d", a4duiImage.TMin()+1, kiImageHeight, kiImageWidth);
+    LOG_INPROGRESSF("Oqj2| Saving image data: TotalFrame = %d, Height = %d, Width = %d", a4duiImage.TMin() + 1, kiImageHeight, kiImageWidth);
     LOG_INPROGRESSF("QZrw| Saving image to: %s", std::string(krwstrSaveFilePath.begin(), krwstrSaveFilePath.end()).c_str());
     CBigTIFF tiffOut;
     // BigTIFF 形式で保存する。
@@ -60,12 +60,12 @@ void SaveImage(const CArray4D<uint16_t> a4duiImage, const int kiImageWidth, cons
 
 void CapturerByHBIDlg() {
     LOG_BEGINF0(7, "3HGr| MAIN: CapturerByHBIDlg()");
-    wstring wstrPARAMSJSON               = L"D:\\_2026\\CapturerByHBI\\CapturerByHBI_rev2\\DeviceParams.json"; // パラメータを読むJSONファイル
-    wstring wstrSaveFilePath             = L"D:\\_2026\\CapturerByHBI\\CapturerByHBI_rev2\\CaptureData\\CapturedImage.tif"; // 保存する画像ファイルのパス
-    std::string strDestIpAddr            = "192.168.10.40"; // FPDのIPアドレス
-    std::string strSrcIpAddr             = "192.168.10.20"; // PCのIPアドレス
+    wstring wstrPARAMSJSON = L"D:\\_2026\\CapturerByHBI\\CapturerByHBI_rev2\\DeviceParams.json"; // パラメータを読むJSONファイル
+    wstring wstrSaveFilePath = L"D:\\_2026\\CapturerByHBI\\CapturerByHBI_rev2\\CaptureData\\CapturedImage.tif"; // 保存する画像ファイルのパス
+    std::string strDestIpAddr = "192.168.10.40"; // FPDのIPアドレス
+    std::string strSrcIpAddr = "192.168.10.20"; // PCのIPアドレス
     constexpr unsigned short kusDestPort = 32897; // FPDのポート番号
-    constexpr unsigned short kusSrcPort  = 32896; // PCのポート番号
+    constexpr unsigned short kusSrcPort = 32896; // PCのポート番号
 
     CHBIDeviceCtrl cHbiDeviceCtrl;
 
@@ -89,7 +89,7 @@ void CapturerByHBIDlg() {
         return;
     }
 
-	// HBI SDK のバージョンを取得する。
+    // HBI SDK のバージョンを取得する。
     std::string strSDKVersion = cHbiDeviceCtrl.GetSDKVersion();
     if (strSDKVersion.empty()) {
         LOG_INPROGRESSF("BhLx| Failed to get SDK version.");
@@ -109,7 +109,7 @@ void CapturerByHBIDlg() {
     }
 
     // ProductCodeをもとに、JSONファイルから撮影パラメータを読み込む。
-	// JSONファイルの内容は、CaptureConfigクラスのコンストラクタで読み取り、撮影パラメータが設定される。
+    // JSONファイルの内容は、CaptureConfigクラスのコンストラクタで読み取り、撮影パラメータが設定される。
     CaptureConfig captureConfig(wstrPARAMSJSON, strProductCode);
 
     // 撮影枚数が 0 の場合はエラーとして終了する。
@@ -152,20 +152,20 @@ void CapturerByHBIDlg() {
 
     // キャプチャ開始
     if (cHbiDeviceCtrl.StartCapture()) {
-		// 50 ms ごとにキャプチャ中かどうかを確認する。
+        // 50 ms ごとにキャプチャ中かどうかを確認する。
         while (cHbiDeviceCtrl.IsCapturing()) {
             std::this_thread::sleep_for(std::chrono::milliseconds(50));
         }
-		// キャプチャが終了したら、StopCapture() を呼び出してキャプチャを停止する。
+        // キャプチャが終了したら、StopCapture() を呼び出してキャプチャを停止する。
         cHbiDeviceCtrl.StopCapture();
     }
 
-	// デバイスの接続を切断する。
+    // デバイスの接続を切断する。
     cHbiDeviceCtrl.DisconnectDevice();
 
     // 画像を保存する。
     const int kiImageHeight = cHbiDeviceCtrl.GetImageHeight();
-    const int kiImageWidth  = cHbiDeviceCtrl.GetImageWidth();
+    const int kiImageWidth = cHbiDeviceCtrl.GetImageWidth();
     const CArray4D<uint16_t> ka4duiImage = cHbiDeviceCtrl.GetImageBuffer();
 
     SaveImage(ka4duiImage, kiImageWidth, kiImageHeight, wstrSaveFilePath);

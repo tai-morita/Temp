@@ -24,9 +24,9 @@ struct CaptureConfig {
     // 外部から渡された設定ファイルとProductCodeで初期化する
     CaptureConfig(std::wstring& rwstrParamsJsonPath, std::string& rstrProductCode)
     {
-		LOG_BEGINF0(7, "5s8E| CaptureConfig::CaptureConfig()");
-		Clear();
-		bool bIsLoadJsonFile = LoadJsonFile(rwstrParamsJsonPath);
+        LOG_BEGINF0(7, "5s8E| CaptureConfig::CaptureConfig()");
+        Clear();
+        bool bIsLoadJsonFile = LoadJsonFile(rwstrParamsJsonPath);
         bool bIsFindCaptureConfig = FindCaptureConfig(rstrProductCode);
         if (bIsLoadJsonFile && bIsFindCaptureConfig) {
             // 成功した場合はログに出力する。
@@ -52,15 +52,15 @@ struct CaptureConfig {
      * @brief 保持しているパラメータを初期化する
      */
     void Clear() {
-        m_iGainType          = 0;
-        m_imsExpTime         = 0;
-        m_iCaptureFrame      = 0;
-        m_iBinningType       = 0;
-        m_iOriginalWidth     = 0;
-        m_iOriginalHeight    = 0;
-        m_iCaptureAreaLeft   = 0;
-        m_iCaptureAreaTop    = 0;
-        m_iCaptureAreaWidth  = 0;
+        m_iGainType = 0;
+        m_imsExpTime = 0;
+        m_iCaptureFrame = 0;
+        m_iBinningType = 0;
+        m_iOriginalWidth = 0;
+        m_iOriginalHeight = 0;
+        m_iCaptureAreaLeft = 0;
+        m_iCaptureAreaTop = 0;
+        m_iCaptureAreaWidth = 0;
         m_iCaptureAreaHeight = 0;
     }
 
@@ -175,15 +175,15 @@ struct CaptureConfig {
         }
         // ProductCode とオブジェクトのテキストの数は一致しているはず。
         if (m_vecstrProductCodes.size() != m_vecstrObjectTexts.size()) {
-            LOG_INPROGRESSF("Mismatch between ProductCodes and ObjectTexts: %zu and %zu", m_vecstrProductCodes.size(), m_vecstrObjectTexts.size());
+            LOG_INPROGRESSF("pC5R| Mismatch between ProductCodes and ObjectTexts: %zu and %zu", m_vecstrProductCodes.size(), m_vecstrObjectTexts.size());
             return false;
         }
         // 読み込んだオブジェクトをログに出力する。
         for (int iIndex = 0; iIndex < static_cast<int>(m_vecstrProductCodes.size()); ++iIndex) {
-            LOG_INPROGRESSF("m_vecstrProductCodes[%d] = %s",
+            LOG_INPROGRESSF("WjD6| m_vecstrProductCodes[%d] = %s",
                 static_cast<int>(iIndex),
                 m_vecstrProductCodes[iIndex].c_str());
-            LOG_INPROGRESSF("m_vecstrObjectTexts[%d] = %s",
+            LOG_INPROGRESSF("jsHs| m_vecstrObjectTexts[%d] = %s",
                 static_cast<int>(iIndex),
                 m_vecstrObjectTexts[iIndex].c_str());
         }
@@ -195,14 +195,14 @@ struct CaptureConfig {
      * @param  krstrProductCode ProductCode
      */
     bool FindCaptureConfig(const std::string& rstrTargetProductCode) {
-        LOG_BEGINF0(7, "CaptureConfig::FindCaptureConfig()");
+        LOG_BEGINF0(7, "Dgw4| CaptureConfig::FindCaptureConfig()");
         nlohmann::json objCaptureParams;
         bool bIsMatchedProductCode = false;
         bool bIsEmptyProductCode = false;
-        
+
         // ProductCode とオブジェクトのテキストが空の場合は、ログに出力して false を返す。
         if (m_vecstrProductCodes.empty() || m_vecstrObjectTexts.empty()) {
-            LOG_INPROGRESSF("No ProductCodes or ObjectTexts found in JSON.");
+            LOG_INPROGRESSF("kZQH| No ProductCodes or ObjectTexts found in JSON.");
             return false;
         }
 
@@ -215,12 +215,12 @@ struct CaptureConfig {
             InputStream >> objectText;
             // JSONのパースに失敗した場合は、ログに出力して次のループに進む。
             if (InputStream.fail()) {
-                LOG_INPROGRESSF("JSON parse error at index %d", iIndex);
+                LOG_INPROGRESSF("mI9d| JSON parse error at index %d", iIndex);
                 continue;
             }
 
             if (krstrProductCode == rstrTargetProductCode) {
-                LOG_INPROGRESSF("Found ProductCode: %s at index %d", krstrProductCode.c_str(), iIndex);
+                LOG_INPROGRESSF("SuUN| Found ProductCode: %s at index %d", krstrProductCode.c_str(), iIndex);
                 objCaptureParams = objectText;
                 bIsMatchedProductCode = true;
                 break;
@@ -232,22 +232,22 @@ struct CaptureConfig {
                 bIsEmptyProductCode = true;
             }
         }
-        
+
         // ProductCode が一致しなかった場合、かつ空のProductCodeが見つからなかった場合は、ログに出力して false を返す。
         if (!bIsMatchedProductCode && !bIsEmptyProductCode) {
-            LOG_INPROGRESSF("No matching ProductCode in JSON. ProductCode=%s", rstrTargetProductCode.c_str());
+            LOG_INPROGRESSF("dBqE| No matching ProductCode in JSON. ProductCode=%s", rstrTargetProductCode.c_str());
             return false;
         }
 
-        m_iGainType          = objCaptureParams.value("GainType", 0);
-        m_imsExpTime         = objCaptureParams.value("msExpTime", 0);
-        m_iCaptureFrame      = objCaptureParams.value("CaptureFrame", 0);
-        m_iBinningType       = objCaptureParams.value("BinningType", 0);
-        m_iOriginalWidth     = objCaptureParams.value("OriginalWidth", 0);
-        m_iOriginalHeight    = objCaptureParams.value("OriginalHeight", 0);
-        m_iCaptureAreaLeft   = objCaptureParams.value("CaptureAreaLeft", 0);
-        m_iCaptureAreaTop    = objCaptureParams.value("CaptureAreaTop", 0);
-        m_iCaptureAreaWidth  = objCaptureParams.value("CaptureAreaWidth", 0);
+        m_iGainType = objCaptureParams.value("GainType", 0);
+        m_imsExpTime = objCaptureParams.value("msExpTime", 0);
+        m_iCaptureFrame = objCaptureParams.value("CaptureFrame", 0);
+        m_iBinningType = objCaptureParams.value("BinningType", 0);
+        m_iOriginalWidth = objCaptureParams.value("OriginalWidth", 0);
+        m_iOriginalHeight = objCaptureParams.value("OriginalHeight", 0);
+        m_iCaptureAreaLeft = objCaptureParams.value("CaptureAreaLeft", 0);
+        m_iCaptureAreaTop = objCaptureParams.value("CaptureAreaTop", 0);
+        m_iCaptureAreaWidth = objCaptureParams.value("CaptureAreaWidth", 0);
         m_iCaptureAreaHeight = objCaptureParams.value("CaptureAreaHeight", 0);
 
         return true;

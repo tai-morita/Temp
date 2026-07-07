@@ -10,7 +10,7 @@
 #include <algorithm>
 #include <iomanip>
 
-#include "HBIrcaptureConfig.h"
+#include "HBICaptureConfig.h"
 #include "../Common/HBI_DLL/INCLUDES/HbiError.h"
 #include "../Common/HBI_DLL/INCLUDES/HbiFpd.h"
 #include "../Common/HBI_DLL/INCLUDES/HbiType.h"
@@ -56,6 +56,7 @@ public:
 		, m_szImageBufferSize(0)
 		, m_strProductCode("")
 	{
+		LOG_BEGINF0(7, "GOzh| HBIDeviceCtrl::HBIDeviceCtrl()");
 	}
 
 	// デストラクタ。
@@ -559,10 +560,10 @@ private:
 	 */
 
 	static int UserHBICallback(
-		void*         pContext,
+		void* pContext,
 		int           ifpdId,
 		unsigned char uceventId,
-		void*         peventParam1,
+		void* peventParam1,
 		int           ieventParam2,
 		int           ieventParam3,
 		int           ieventParam4
@@ -595,7 +596,7 @@ private:
 	int OnHBICallback(
 		int           ifpdId,
 		unsigned char uceventId,
-		void*         peventParam1,
+		void* peventParam1,
 		int           ieventParam2,
 		int           ieventParam3,
 		int           ieventParam4
@@ -611,10 +612,10 @@ private:
 			// SDK から画像データが送られてきた場合、peventParam1 に IMAGE_DATA_ST 構造体のポインタが渡される。
 			const void* pImageData = static_cast<IMAGE_DATA_ST*>(peventParam1)->databuff;
 			if (!pImageData) {
-				LOG_INPROGRESSF("Received null image data pointer.");
+				LOG_INPROGRESSF("cDgc| Received null image data pointer.");
 				return 0;
 			}
-			LOG_INPROGRESSF("pImageData: %d", pImageData);
+			LOG_INPROGRESSF("s2bo| pImageData: %d", pImageData);
 			SaveImageBuffer(pImageData);
 		}
 		return 1;
