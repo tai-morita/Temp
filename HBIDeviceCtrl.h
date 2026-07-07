@@ -72,7 +72,7 @@ public:
 			m_bIsInitialized = false;
 		}
 		if (m_pImageBuffer != nullptr) {
-			m_pImageBuffer = nullptr;
+			m_pImageBuffer  = nullptr;
 		}
 	}
 
@@ -110,6 +110,7 @@ public:
 		// 16 文字 + NULL 文字の 17 bytes 以上確保する必要がある。
 		// 最大サイズはDTに確認中。
 		char cProductCode[128] = { 0 };
+
 		int iResult = HBI_GetHbiProductCode(m_hHBI, cProductCode);
 		if (!IsSuccess(iResult)) {
 			return "";
@@ -127,6 +128,7 @@ public:
 		if (!m_bIsInitialized) { return ""; }
 		// 配列の長さは 64 以上確保する必要がある。
 		char cSDKVersion[128] = { 0 };
+
 		int iResult = HBI_GetSDKVerion(m_hHBI, cSDKVersion);
 		if (!IsSuccess(iResult)) {
 			return "";
@@ -137,48 +139,55 @@ public:
 
 public:
 	/**
-	 * @brief デバイスに接続する。関数を実行する。
-	 * @note  IPアドレスを char* 型に変換して、ConnectDevice(char*, unsigned short, char*, unsigned short) を呼び出す。
-	 *        HBI_ConnectDetectorJumbo() が char* 型を要求するため、string* 型の文字列を char* 型に変換する必要がある。
+	 * @brief   デバイスに接続する。関数を実行する。
+	 * @param   kpstrDestIpAddr デバイスの IP アドレス。
+	 * @param   kusDestPORT     デバイスのポート番号。
+	 * @param   kpstrSrcIpAddr  PC の IP アドレス。
+	 * @param   kusSrcPort      PC のポート番号。
+	 * @details IPアドレスを char* 型に変換して、ConnectDevice(char*, unsigned short, char*, unsigned short) を呼び出す。
+	 *          HBI_ConnectDetectorJumbo() が char* 型を要求するため、string* 型の文字列を char* 型に変換する必要がある。
 	*/
-	bool ConnectDevice(const std::string* pstrDestIpAddr, const unsigned short kusDestPORT, const std::string* pstrSrcIpAddr, const unsigned short kusSrcPort) {
+	bool ConnectDevice(const std::string* kpstrDestIpAddr, const unsigned short kusDestPORT, const std::string* kpstrSrcIpAddr, const unsigned short kusSrcPort) {
 		LOG_BEGINF0(7, "GUGw| HBIDeviceCtrl::ConnectDevice()");
 		bool bIsSuccess = false;
 		// SDK に渡すIPアドレスは const ではないため、メモリを確保して char* 型に変換する。
-		const size_t szDestIpAddrBuffLen = pstrDestIpAddr->length() + 1;
-		const size_t szSrcIpAddrBuffLen = pstrSrcIpAddr->length() + 1;
+		const size_t szDestIpAddrBuffLen = kpstrDestIpAddr->length() + 1;
+		const size_t szSrcIpAddrBuffLen  = kpstrSrcIpAddr->length() + 1;
 		char* pcDestIpAddr = new char[szDestIpAddrBuffLen];
-		char* pcSrcIpAddr = new char[szSrcIpAddrBuffLen];
-		memcpy_s(pcDestIpAddr, szDestIpAddrBuffLen, pstrDestIpAddr->c_str(), szDestIpAddrBuffLen);
-		memcpy_s(pcSrcIpAddr, szSrcIpAddrBuffLen, pstrSrcIpAddr->c_str(), szSrcIpAddrBuffLen);
+		char* pcSrcIpAddr  = new char[szSrcIpAddrBuffLen];
+		memcpy_s(pcDestIpAddr, szDestIpAddrBuffLen, kpstrDestIpAddr->c_str(), szDestIpAddrBuffLen);
+		memcpy_s(pcSrcIpAddr , szSrcIpAddrBuffLen , kpstrSrcIpAddr->c_str() , szSrcIpAddrBuffLen);
 
 		bool iResult = ConnectDevice(pcDestIpAddr, kusDestPORT, pcSrcIpAddr, kusSrcPort);
-		if (iResult) { bIsSuccess = true; }
-		else { bIsSuccess = false; }
+		if (iResult) { bIsSuccess = true ; }
+		else         { bIsSuccess = false; }
 		// メモリを解放する。
 		delete[] pcDestIpAddr;
 		delete[] pcSrcIpAddr;
 		return bIsSuccess;
 	}
 	/**
-	 * @brief  デバイスの接続を切断する。
-	 * @note   m_hHBI が持っているハンドルはここで解放される。
+	 * @brief   デバイスの接続を切断する。
+	 * @details m_hHBI が持っているハンドルはここで解放される。
 	 */
 	bool DisconnectDevice() {
 		LOG_BEGINF0(7, "gN20| HBIDeviceCtrl::DisconnectDevice()");
 
+		// キャプチャ中の場合は、キャプチャを停止する。
 		if (m_bIsCapturing) {
 			LOG_INPROGRESSF("2ycH| Stopping capture before disconnecting device.");
 			StopCapture();
 		}
 
+		// 画像バッファを解放する。
 		if (m_pImageBuffer != nullptr) {
 			LOG_INPROGRESSF("9NVM| Releasing image buffer.");
 			m_pImageBuffer = nullptr;
 		}
 
+		// すでに接続されていない場合は切断する必要はない。
 		if (!IsDeviceConnected()) {
-			return true; // すでに接続されていない場合は切断する必要はない。
+			return true;
 		}
 
 		if (IsInitialized()) {
@@ -203,13 +212,13 @@ public:
 		}
 		// 初期化処理
 		m_hHBI = HBI_Init(0);
-		if (!m_hHBI) { m_bIsInitialized = false; }
-		else { m_bIsInitialized = true; }
+		if (m_hHBI)  { m_bIsInitialized = true ; }
+		else         { m_bIsInitialized = false; }
 		return m_bIsInitialized;
 	}
 	/**
-	 * @brief SDK のイベントコールバック関数を設定する。
-	 * @note  イベントが起こった時、SDK が UserHBICallback を呼び出す。
+	 * @brief   SDK のイベントコールバック関数を設定する。
+	 * @details イベントが起こった時、SDK が this ポインタを引数として UserHBICallback を呼び出す。
 	 */
 	void SetCallbackFunction() { HBI_RegEventCallBackFun(m_hHBI, UserHBICallback, this); }
 
@@ -218,7 +227,7 @@ public:
 	 * @return true: 接続されている, false: 接続されていない
 	 */
 	bool IsDeviceConnected() const {
-		LOG_BEGINF0(7, "RB58| HBIDeviceCtrl::IsConnected()");
+		LOG_BEGINF0(2, "RB58| HBIDeviceCtrl::IsConnected()");
 		if (!IsInitialized()) { return false; }
 		int iResult = HBI_IsConnect(m_hHBI);
 		if (!iResult) {
@@ -286,16 +295,7 @@ public:
 
 	/**
 	 * @brief  キャプチャパラメータを設定する。
-	 * @param  iGainType           Gain Type (1 ~ 11)。
-	 * @param  imsExpTime          Exposure time (ms)。
-	 * @param  iCaptureFrame       取得するフレーム数。
-	 * @param  iBinningType        Binning (1: 1x1, 2: 2x2, 3: 3x3, 4: 4x4)。
-	 * @param  iOriginalSizeWidth  フルエリアの幅。
-	 * @param  iOriginalSizeHeight フルエリアの高さ。
-	 * @param  iCaptureAreaLeft    キャプチャ領域の左上の X 座標。
-	 * @param  iCaptureAreaTop     キャプチャ領域の左上の Y 座標。
-	 * @param  iCaptureAreaWidth   キャプチャ領域の幅。
-	 * @param  iCaptureAreaHeight  キャプチャ領域の高さ。
+	 * @param  rcaptureConfig: 設定するキャプチャパラメータを保持する構造体。
 	 * @return true: 設定に成功, false: 設定に失敗
 	 * @note   3030z デュアル読出しのため、Width はフルエリア、Height は中心から等間隔にオフセットする必要がある。
 	 *         現在 3030z の採用予定はない。
@@ -341,24 +341,24 @@ public:
 			*/
 			CMOS_ZOOM_RECT hbiCaptureArea;
 			if (m_strProductCode == "X-Panel3030zFDM") {
-				hbiCaptureArea.utop = (rcaptureConfig.m_iOriginalHeight - rcaptureConfig.m_iCaptureAreaHeight) / 2;
+				hbiCaptureArea.utop    = (rcaptureConfig.m_iOriginalHeight - rcaptureConfig.m_iCaptureAreaHeight) / 2;
 				hbiCaptureArea.ubottom = hbiCaptureArea.utop + rcaptureConfig.m_iCaptureAreaTop - 1;
-				hbiCaptureArea.uleft = 0;
-				hbiCaptureArea.uright = 0;
+				hbiCaptureArea.uleft   = 0;
+				hbiCaptureArea.uright  = 0;
 			}
 			else {
-				hbiCaptureArea.utop = rcaptureConfig.m_iCaptureAreaTop;
+				hbiCaptureArea.utop    = rcaptureConfig.m_iCaptureAreaTop;
 				hbiCaptureArea.ubottom = rcaptureConfig.m_iCaptureAreaTop + rcaptureConfig.m_iCaptureAreaHeight - 1;
-				hbiCaptureArea.uleft = 0;
-				hbiCaptureArea.uright = 0;
+				hbiCaptureArea.uleft   = 0;
+				hbiCaptureArea.uright  = 0;
 			}
 			// ZoomWidth, ZoomHeight が 0 の時はフルサイズになるようにする。
 			if (rcaptureConfig.m_iCaptureAreaWidth == 0) {
-				hbiCaptureArea.uleft = 0;
+				hbiCaptureArea.uleft  = 0;
 				hbiCaptureArea.uright = 0;
 			}
 			if (rcaptureConfig.m_iCaptureAreaHeight == 0) {
-				hbiCaptureArea.utop = 0;
+				hbiCaptureArea.utop    = 0;
 				hbiCaptureArea.ubottom = 0;
 			}
 			LOG_INPROGRESSF("TKz2| Setting CaptureArea  to (Left, Top) = (%d, %d), (Right, Bottom) = (%d, %d)",
@@ -372,10 +372,10 @@ public:
 	}
 
 	/**
-	 * @brief  取得するフレーム数に応じて画像バッファを確保する。
-	 * @param  iCaptureFrame 取得するフレーム数。
-	 * @return true: バッファの確保に成功, false: バッファの確保に失敗
-	 * @note   画像バッファは m_a4duiImageBuffer に確保される。バッファのサイズは m_iImageWidth * m_iImageHeight * iCaptureFrame。
+	 * @brief   取得するフレーム数に応じて画像バッファを確保する。
+	 * @param   iCaptureFrame: 取得するフレーム数。
+	 * @return  true: バッファの確保に成功, false: バッファの確保に失敗
+	 * @details 画像バッファは m_a4duiImageBuffer に確保される。バッファのサイズは m_iImageWidth * m_iImageHeight * iCaptureFrame。
 	 */
 	bool AllocateImageBuffer(const int kiCaptureFrame) {
 		// 未初期化、未接続、撮影中の場合はバッファを確保しない。
@@ -398,7 +398,7 @@ public:
 		// 画像は4次元配列(X, Y, Z, T)で、フレーム方向はT次元で表す。
 		m_a4duiImageBuffer.Resize(0, m_iImageWidth - 1, 0, m_iImageHeight - 1, 0, 0, 0, kiCaptureFrame - 1, CArray4D<uint16_t>::R_CLEAR);
 		m_szImageBufferSize = m_a4duiImageBuffer.BufferLen();
-		m_pImageBuffer = m_a4duiImageBuffer.PTable();
+		m_pImageBuffer      = m_a4duiImageBuffer.PTable();
 
 		LOG_INPROGRESSF("HS4r| Allocated image buffer of size: %zu (Width=%d, Height=%d, CaptureFrame=%d)",
 			m_szImageBufferSize, m_iImageWidth, m_iImageHeight, kiCaptureFrame);
@@ -406,10 +406,10 @@ public:
 	}
 
 	/**
-	 * @brief  画像のサイズを取得してメンバ変数を更新する。
-	 * @return true: 取得に成功, false: 取得に失敗
-	 * @note   画像のサイズは m_iImageWidth, m_iImageHeight に格納される。
-	 *         取得に失敗した場合は m_iImageWidth, m_iImageHeight を 0 に設定される。
+	 * @brief   画像のサイズを取得してメンバ変数を更新する。
+	 * @return  true: 取得に成功, false: 取得に失敗
+	 * @details 画像のサイズは m_iImageWidth, m_iImageHeight に格納される。
+	 *          取得に失敗した場合は m_iImageWidth, m_iImageHeight を 0 に設定される。
 	 */
 	bool UpdateImageProperties() {
 		LOG_BEGINF0(7, "GI8J| HBIDeviceCtrl::UpdateImageProperties()");
@@ -418,11 +418,12 @@ public:
 		IMAGE_PROPERTY hbiImageProperty; // FPD プロパティの構造体
 		int iResult = HBI_GetImageProperty(m_hHBI, &hbiImageProperty);
 		if (!IsSuccess(iResult)) {
-			m_iImageWidth = 0;
+			// 取得に失敗した場合は、画像サイズを 0 に設定する。
+			m_iImageWidth  = 0;
 			m_iImageHeight = 0;
 			return false;
 		}
-		m_iImageWidth = hbiImageProperty.nwidth;
+		m_iImageWidth  = hbiImageProperty.nwidth;
 		m_iImageHeight = hbiImageProperty.nheight;
 		LOG_INPROGRESSF("NaxT| Image Properties: Width=%d, Height=%d", m_iImageWidth, m_iImageHeight);
 		return true;
@@ -470,10 +471,10 @@ public:
 private:
 	/**
 	 * @brief  Jumbo Packet でデバイスに接続する。
-	 * @param  pcDestIPAddr FPD の IP アドレス。
-	 * @param  kusDestPort  FPD のポート番号。
-	 * @param  pcSrcIPAddr  PC の IP アドレス。
-	 * @param  kusSrcPort   PC のポート番号。
+	 * @param  pcDestIPAddr: FPD の IP アドレス。
+	 * @param  kusDestPort : FPD のポート番号。
+	 * @param  pcSrcIPAddr : PC の IP アドレス。
+	 * @param  kusSrcPort  : PC のポート番号。
 	 * @return true: 接続に成功, false: 接続に失敗
 	 */
 	bool ConnectDevice(char* pcDestIpAddr, const unsigned short kusDestPORT, char* pcSrcIpAddr, const unsigned short kusSrcPort) {
@@ -488,7 +489,7 @@ private:
 	}
 	/**
 	 * @brief  HBI の関数の処理が成功したか否かを判定する。
-	 * @param  iResult HBI の関数の戻り値。
+	 * @param  iResult: HBI の関数の戻り値。
 	 * @return true: 成功, false: 失敗
 	 */
 	bool IsSuccess(const int kiResult) const {
@@ -514,73 +515,61 @@ private:
 	bool IsInitialized() const { return m_bIsInitialized; }
 
 	/**
-	 * @brief  画像データをバッファに保存する。
-	 * @param  pImageData 画像データのポインタ。
-	 * @return なし。
-	 * @note   コールバック関数から呼び出される。
-	 *         pvParam1 は IMAGE_DATA_ST 構造体のポインタ。
-	 *         databuff メンバに画像データが格納されている。
+	 * @brief   画像データをバッファに保存する。
+	 * @param   pImageData: 画像データのポインタ。
+	 * @return  なし。
+	 * @details 画像取得後、コールバック関数から呼び出される。
+	 *          指定枚数に達するまで、取得した画像データを m_pImageBuffer に保存する。
 	 */
-	void SaveImageBuffer(const void* pImageData) {
+	bool SaveImageBuffer(const void* pImageData) {
 		LOG_BEGINF0(7, "KiH8| HBIDeviceCtrl::SaveImageBuffer()");
 		if (m_iFrameCounter >= m_iCaptureFrame) {
 			// 指定枚数撮影したので保存はしない。
 			LOG_INPROGRESSF("7wM9| Frame counter %d reached capture frame %d. Stopping capture.", m_iFrameCounter, m_iCaptureFrame);
 			m_bIsCapturing = false;
-			return;
+			return false;
 		}
 
 		// 取得したフレーム数だけオフセットする。
 		const int kiFramePixelCount = m_iImageWidth * m_iImageHeight;
 		const size_t kszOffsetBuffSize = static_cast<size_t>(m_iFrameCounter * kiFramePixelCount);
 
-		// IMAGE_DATA_ST 構造体内の databuff に画像データがあるので、それをバッファにコピーする。
-		memcpy_s(
-			m_pImageBuffer + kszOffsetBuffSize,
-			(m_szImageBufferSize - kszOffsetBuffSize) * sizeof(uint16_t), // バッファの残りサイズを計算する。
-			pImageData,
-			kiFramePixelCount * sizeof(uint16_t)
-		);
+		try {
+			memcpy_s(
+				m_pImageBuffer + kszOffsetBuffSize,                           // コピー先のバッファの先頭アドレス
+				(m_szImageBufferSize - kszOffsetBuffSize) * sizeof(uint16_t), // バッファの残りサイズ
+				pImageData,                                                   // コピー元のバッファの先頭アドレス
+				kiFramePixelCount * sizeof(uint16_t)                          // コピーするバイト数
+			);
+		} catch (const std::exception& eError) {
+			LOG_INPROGRESSF("RLIT| Exception occurred while saving image data: %s", eError.what());
+			return false;
+		}
 
 		// 保存に成功したらフレーム数をカウントする。
 		LOG_INPROGRESSF("779v| Saved image data for frame %d", m_iFrameCounter);
 		m_iFrameCounter++;
-
+		return true;
 	}
 
 	/**
-	 * @brief  SDK のイベントコールバック関数。SDK がイベントを検知した時に呼び出される。
-	 * @param  pContext       オブジェクトのポインタ。
-	 * @param  ifpdId         デバイス ID。
-	 * @param  uceventId      イベント ID。
-	 * @param  peventParam1   イベントに関するパラメータ。
-	 * @param  ieventParam2   イベントに関するパラメータ。
-	 * @param  ieventParam3   イベントに関するパラメータ。
-	 * @param  ieventParam4   イベントに関するパラメータ。
+	 * @brief   SDK のイベントコールバック関数。SDK がイベントを検知した時に呼び出される。
+	 * @param   pContext       SDK 側で取得したオブジェクトのポインタ。
+	 * @param   ifpdId         デバイス ID。
+	 * @param   uceventId      イベント ID。
+	 * @param   peventParam1   イベントに関するパラメータ。
+	 * @param   ieventParam2   イベントに関するパラメータ。
+	 * @param   ieventParam3   イベントに関するパラメータ。
+	 * @param   ieventParam4   イベントに関するパラメータ。
+	 * @return  1 を返す。
+	 * @details SDK の仕様上、コールバック関数は static メソッドかつ int 型の関数である必要がある。
 	 */
-
-	static int UserHBICallback(
-		void* pContext,
-		int           ifpdId,
-		unsigned char uceventId,
-		void* peventParam1,
-		int           ieventParam2,
-		int           ieventParam3,
-		int           ieventParam4
-	)
-	{
+	static int UserHBICallback(void* pContext, int ifpdId, unsigned char uceventId, void* peventParam1, int ieventParam2, int ieventParam3, int ieventParam4){
 		// SDK側で取得したポインタを CHBIDeviceCtrl クラスのオブジェクトのポインタとしてキャストする。
 		CHBIDeviceCtrl* pCHBIDeviceCtrl = static_cast<CHBIDeviceCtrl*>(pContext);
-
 		if (!pCHBIDeviceCtrl) { return 0; }
-		return pCHBIDeviceCtrl->OnHBICallback(
-			ifpdId,
-			uceventId,
-			peventParam1,
-			ieventParam2,
-			ieventParam3,
-			ieventParam4
-		);
+		pCHBIDeviceCtrl->OnHBICallback(ifpdId, uceventId, peventParam1, ieventParam2, ieventParam3, ieventParam4 );
+		return 1;
 	}
 
 	/**
@@ -591,17 +580,8 @@ private:
 	 * @param  ieventParam2   イベントに関するパラメータ
 	 * @param  ieventParam3   イベントに関するパラメータ
 	 * @param  ieventParam4   イベントに関するパラメータ
-	 * @return 1 を返す。
 	 */
-	int OnHBICallback(
-		int           ifpdId,
-		unsigned char uceventId,
-		void* peventParam1,
-		int           ieventParam2,
-		int           ieventParam3,
-		int           ieventParam4
-	)
-	{
+	void OnHBICallback(int ifpdId, unsigned char uceventId, void* peventParam1, int ieventParam2, int ieventParam3, int ieventParam4){
 		LOG_BEGINF0(2, "6P6w| CHBIDeviceCtrl::OnHBICallback()");
 		// peventParam1 以外は使っていないが、 SDK の仕様上、引数として受け取る必要がある。
 		(void)ifpdId;
@@ -613,11 +593,10 @@ private:
 			const void* pImageData = static_cast<IMAGE_DATA_ST*>(peventParam1)->databuff;
 			if (!pImageData) {
 				LOG_INPROGRESSF("cDgc| Received null image data pointer.");
-				return 0;
+				return;
 			}
-			LOG_INPROGRESSF("s2bo| pImageData: %d", pImageData);
 			SaveImageBuffer(pImageData);
 		}
-		return 1;
+		return;
 	}
 };

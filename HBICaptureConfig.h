@@ -26,22 +26,22 @@ struct CaptureConfig {
     {
         LOG_BEGINF0(7, "5s8E| CaptureConfig::CaptureConfig()");
         Clear();
-        bool bIsLoadJsonFile = LoadJsonFile(rwstrParamsJsonPath);
+        bool bIsLoadJsonFile      = LoadJsonFile(rwstrParamsJsonPath);
         bool bIsFindCaptureConfig = FindCaptureConfig(rstrProductCode);
         if (bIsLoadJsonFile && bIsFindCaptureConfig) {
             // 成功した場合はログに出力する。
             LOG_INPROGRESSF("l7qt| Loaded CaptureConfig for");
-            LOG_INPROGRESSF("steJ|    ProductCode      : %s", rstrProductCode.c_str());
-            LOG_INPROGRESSF("bI88|    GainType         : %d", m_iGainType);
+            LOG_INPROGRESSF("steJ|    ProductCode      : %s"   , rstrProductCode.c_str());
+            LOG_INPROGRESSF("bI88|    GainType         : %d"   , m_iGainType);
             LOG_INPROGRESSF("PPPL|    ExposureTime     : %d ms", m_imsExpTime);
-            LOG_INPROGRESSF("HiSV|    CaptureFrame     : %d", m_iCaptureFrame);
-            LOG_INPROGRESSF("3sGX|    BinningType      : %d", m_iBinningType);
-            LOG_INPROGRESSF("KuNk|    OriginalWidth    : %d", m_iOriginalWidth);
-            LOG_INPROGRESSF("DpL2|    OriginalHeight   : %d", m_iOriginalHeight);
-            LOG_INPROGRESSF("6TdK|    CaptureAreaLeft  : %d", m_iCaptureAreaLeft);
-            LOG_INPROGRESSF("2NYy|    CaptureAreaTop   : %d", m_iCaptureAreaTop);
-            LOG_INPROGRESSF("jrHQ|    CaptureAreaWidth : %d", m_iCaptureAreaWidth);
-            LOG_INPROGRESSF("Smr3|    CaptureAreaHeight: %d", m_iCaptureAreaHeight);
+            LOG_INPROGRESSF("HiSV|    CaptureFrame     : %d"   , m_iCaptureFrame);
+            LOG_INPROGRESSF("3sGX|    BinningType      : %d"   , m_iBinningType);
+            LOG_INPROGRESSF("KuNk|    OriginalWidth    : %d"   , m_iOriginalWidth);
+            LOG_INPROGRESSF("DpL2|    OriginalHeight   : %d"   , m_iOriginalHeight);
+            LOG_INPROGRESSF("6TdK|    CaptureAreaLeft  : %d"   , m_iCaptureAreaLeft);
+            LOG_INPROGRESSF("2NYy|    CaptureAreaTop   : %d"   , m_iCaptureAreaTop);
+            LOG_INPROGRESSF("jrHQ|    CaptureAreaWidth : %d"   , m_iCaptureAreaWidth);
+            LOG_INPROGRESSF("Smr3|    CaptureAreaHeight: %d"   , m_iCaptureAreaHeight);
         }
         else {
             LOG_INPROGRESSF("l7qt| Failed to load CaptureConfig for Product Code: %s", rstrProductCode.c_str());
@@ -52,16 +52,18 @@ struct CaptureConfig {
      * @brief 保持しているパラメータを初期化する
      */
     void Clear() {
-        m_iGainType = 0;
-        m_imsExpTime = 0;
-        m_iCaptureFrame = 0;
-        m_iBinningType = 0;
-        m_iOriginalWidth = 0;
-        m_iOriginalHeight = 0;
-        m_iCaptureAreaLeft = 0;
-        m_iCaptureAreaTop = 0;
-        m_iCaptureAreaWidth = 0;
+        m_iGainType          = 0;
+        m_imsExpTime         = 0;
+        m_iCaptureFrame      = 0;
+        m_iBinningType       = 0;
+        m_iOriginalWidth     = 0;
+        m_iOriginalHeight    = 0;
+        m_iCaptureAreaLeft   = 0;
+        m_iCaptureAreaTop    = 0;
+        m_iCaptureAreaWidth  = 0;
         m_iCaptureAreaHeight = 0;
+		m_vecstrProductCodes.clear();
+		m_vecstrObjectTexts.clear();
     }
 
     /**
@@ -72,25 +74,33 @@ struct CaptureConfig {
      *          1 文字ずつ解析して、エスケープ文字で開始と終了を判断する。
      */
     bool LoadJsonFile(const std::wstring& krwstrParamsJsonPath) {
-        LOG_BEGINF0(7, "EePC| CaptureConfig::LoadJsonFile()");
-        std::ifstream ifs(krwstrParamsJsonPath);
-        if (!ifs.is_open()) {
-            LOG_INPROGRESSF("Ikny| Failed to open: %s", std::string(krwstrParamsJsonPath.begin(), krwstrParamsJsonPath.end()).c_str());
+        LOG_BEGINF0(7, "8lp9| CaptureConfig::LoadJsonFile()");
+        std::string strParamsJsonText;
+        std::size_t szObjectStart = std::string::npos;
+        int iArrayDepth                      = 0;     // トップレベルの配列の深さを追跡するための変数。
+        int iObjectDepth                     = 0;     // オブジェクトの深さを追跡するための変数。
+        bool bIsString                       = false; // 文字列の中にいるかどうかを追跡するための変数。
+        bool bIsEscaped                      = false; // 文字列内でエスケープされているかどうかを追跡するための変数。
+        bool bIsPushBackString               = false; // 文字列をベクトルに追加するかどうかを追跡するための変数。
+        std::string strCurrentTopLevelString = "";    // トップレベルの配列内の文字列(ProductCode)をキャプチャするための変数。
+
+        try {
+            std::ifstream ifs(krwstrParamsJsonPath);
+            if (!ifs.is_open()) {
+                LOG_INPROGRESSF("xH6U| Failed to open: %s", std::string(krwstrParamsJsonPath.begin(), krwstrParamsJsonPath.end()).c_str());
+                return false;
+            }
+            // JSONファイルの内容を文字列として読み込む
+            strParamsJsonText.assign((std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
+        } catch (const std::exception& eError) {
+            LOG_INPROGRESSF("SbeY| Exception occurred while opening JSON file: %s", eError.what());
             return false;
         }
-        // JSONファイルの内容を文字列として読み込む
-        const std::string kstrParamsJsonText((std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
-        std::size_t szObjectStart = std::string::npos;
-        int iArrayDepth = 0; // トップレベルの配列の深さを追跡するための変数。
-        int iObjectDepth = 0; // オブジェクトの深さを追跡するための変数。
-        bool bIsString = false; // 文字列の中にいるかどうかを追跡するための変数。
-        bool bIsEscaped = false; // 文字列内でエスケープされているかどうかを追跡するための変数。
-        bool bIsPushBackString = false; // 文字列をベクトルに追加するかどうかを追跡するための変数。
-        std::string strCurrentTopLevelString = ""; // トップレベルの配列内の文字列(ProductCode)をキャプチャするための変数。
 
-        for (int iIndex = 0; iIndex < kstrParamsJsonText.size(); ++iIndex) {
+        LOG_INPROGRESSF("TEST| Failed to open: %s", std::string(krwstrParamsJsonPath.begin(), krwstrParamsJsonPath.end()).c_str());
+        for (int iIndex = 0; iIndex < strParamsJsonText.size(); ++iIndex) {
             // １文字ずつ抽出して、文字列を抜き取る。
-            const char kcCurrentJsonChar = kstrParamsJsonText[iIndex];
+            const char kcCurrentJsonChar = strParamsJsonText[iIndex];
 
             // 現在は文字列なので、文字列の終わりにある["]を探す。
             if (bIsString) {
@@ -127,7 +137,7 @@ struct CaptureConfig {
 
             // エスケープされていない["]が来た時は文字列の開始を意味する。
             if (kcCurrentJsonChar == '"') {
-                bIsString = true;
+                bIsString  = true;
                 bIsEscaped = false;
                 // トップレベルの配列の深さが1で、オブジェクトの深さが0のときに文字列をキャプチャするための状態を更新する。
                 if (iArrayDepth == 1 && iObjectDepth == 0) {
@@ -166,8 +176,8 @@ struct CaptureConfig {
                     iObjectDepth--;
                     // オブジェクトの終了時にPushBackした文字列(ProductCode)とオブジェクトのテキストをそれぞれのベクトルに入れる。
                     if (iObjectDepth == 0 && szObjectStart != std::string::npos) {
-                        // kstrParamsJsonText の { と } の間のテキストを m_vecstrObjectTexts に入れる。
-                        m_vecstrObjectTexts.emplace_back(kstrParamsJsonText.substr(szObjectStart, iIndex - szObjectStart + 1));
+                        // strParamsJsonText の { と } の間のテキストを m_vecstrObjectTexts に入れる。
+                        m_vecstrObjectTexts.emplace_back(strParamsJsonText.substr(szObjectStart, iIndex - szObjectStart + 1));
                         szObjectStart = std::string::npos; // 初期化
                     }
                 }
@@ -198,7 +208,7 @@ struct CaptureConfig {
         LOG_BEGINF0(7, "Dgw4| CaptureConfig::FindCaptureConfig()");
         nlohmann::json objCaptureParams;
         bool bIsMatchedProductCode = false;
-        bool bIsEmptyProductCode = false;
+        bool bIsEmptyProductCode   = false;
 
         // ProductCode とオブジェクトのテキストが空の場合は、ログに出力して false を返す。
         if (m_vecstrProductCodes.empty() || m_vecstrObjectTexts.empty()) {
@@ -208,7 +218,7 @@ struct CaptureConfig {
 
         for (int iIndex = 0; iIndex < static_cast<int>(m_vecstrProductCodes.size()); ++iIndex) {
             const std::string& krstrProductCode = m_vecstrProductCodes[iIndex];
-            const std::string& krstrObjectText = m_vecstrObjectTexts[iIndex];
+            const std::string& krstrObjectText  = m_vecstrObjectTexts[iIndex];
 
             std::istringstream InputStream(krstrObjectText);
             nlohmann::json objectText;
@@ -239,15 +249,15 @@ struct CaptureConfig {
             return false;
         }
 
-        m_iGainType = objCaptureParams.value("GainType", 0);
-        m_imsExpTime = objCaptureParams.value("msExpTime", 0);
-        m_iCaptureFrame = objCaptureParams.value("CaptureFrame", 0);
-        m_iBinningType = objCaptureParams.value("BinningType", 0);
-        m_iOriginalWidth = objCaptureParams.value("OriginalWidth", 0);
-        m_iOriginalHeight = objCaptureParams.value("OriginalHeight", 0);
-        m_iCaptureAreaLeft = objCaptureParams.value("CaptureAreaLeft", 0);
-        m_iCaptureAreaTop = objCaptureParams.value("CaptureAreaTop", 0);
-        m_iCaptureAreaWidth = objCaptureParams.value("CaptureAreaWidth", 0);
+        m_iGainType          = objCaptureParams.value("GainType"         , 0);
+        m_imsExpTime         = objCaptureParams.value("msExpTime"        , 0);
+        m_iCaptureFrame      = objCaptureParams.value("CaptureFrame"     , 0);
+        m_iBinningType       = objCaptureParams.value("BinningType"      , 0);
+        m_iOriginalWidth     = objCaptureParams.value("OriginalWidth"    , 0);
+        m_iOriginalHeight    = objCaptureParams.value("OriginalHeight"   , 0);
+        m_iCaptureAreaLeft   = objCaptureParams.value("CaptureAreaLeft"  , 0);
+        m_iCaptureAreaTop    = objCaptureParams.value("CaptureAreaTop"   , 0);
+        m_iCaptureAreaWidth  = objCaptureParams.value("CaptureAreaWidth" , 0);
         m_iCaptureAreaHeight = objCaptureParams.value("CaptureAreaHeight", 0);
 
         return true;

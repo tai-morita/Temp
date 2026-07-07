@@ -24,11 +24,11 @@ CWinApp theApp;
 using namespace std;
 
 /**
- * @brief 画像を保存する関数
- * @param a2dusImage 保存する画像データの2次元配列
- * @param iSaveFrame 保存するフレーム数
- * @param krwstrSaveFilePath 保存先のファイルパス
- * @note  4次元配列は(X, Y, Z, T) で格納されており、フレームはT軸で指定されている。
+ * @brief  画像を保存する関数
+ * @param  a2dusImage 保存する画像データの2次元配列
+ * @param  iSaveFrame 保存するフレーム数
+ * @param  krwstrSaveFilePath 保存先のファイルパス
+ * @detail 4 次元配列は(X, Y, Z, T) で格納されており、フレームは T 軸で指定されている。
  */
 void SaveImage(const CArray4D<uint16_t> a4duiImage, const int kiImageWidth, const int kiImageHeight, const wstring& krwstrSaveFilePath) {
     LOG_BEGINF0(7, "HzZX| SaveImage()");
@@ -43,14 +43,14 @@ void SaveImage(const CArray4D<uint16_t> a4duiImage, const int kiImageWidth, cons
         LOG_INPROGRESSF("VNmm|  a4duiImage.BufferLen() = %d", a4duiImage.BufferLen());
         return;
     }
-    LOG_INPROGRESSF("Oqj2| Saving image data: TotalFrame = %d, Height = %d, Width = %d", a4duiImage.TMin() + 1, kiImageHeight, kiImageWidth);
+    LOG_INPROGRESSF("Oqj2| Saving image data: TotalFrame = %d, Height = %d, Width = %d", a4duiImage.TLen(), kiImageHeight, kiImageWidth);
     LOG_INPROGRESSF("QZrw| Saving image to: %s", std::string(krwstrSaveFilePath.begin(), krwstrSaveFilePath.end()).c_str());
     CBigTIFF tiffOut;
     // BigTIFF 形式で保存する。
     tiffOut.OpenFileToWrite(krwstrSaveFilePath, CBigTIFF::EWriteFormat::TIFF8);
     for (int iFrame = a4duiImage.TMin(); iFrame <= a4duiImage.TMax(); ++iFrame) {
         CArray2D<uint16_t> a2duiTemp(0, kiImageWidth - 1, 0, kiImageHeight - 1);
-        a2duiTemp = a4duiImage.Geta2dPlane(0, iFrame);
+        a2duiTemp    = a4duiImage.Geta2dPlane(0, iFrame);
         double dMean = a2duiTemp.Mean(double());
         LOG_INPROGRESSF("kB9F| Frame %d: Mean pixel value = %f", iFrame, dMean);
         tiffOut.WriteFrame(a2duiTemp);
@@ -60,12 +60,12 @@ void SaveImage(const CArray4D<uint16_t> a4duiImage, const int kiImageWidth, cons
 
 void CapturerByHBIDlg() {
     LOG_BEGINF0(7, "3HGr| MAIN: CapturerByHBIDlg()");
-    wstring wstrPARAMSJSON = L"D:\\_2026\\CapturerByHBI\\CapturerByHBI_rev2\\DeviceParams.json"; // パラメータを読むJSONファイル
-    wstring wstrSaveFilePath = L"D:\\_2026\\CapturerByHBI\\CapturerByHBI_rev2\\CaptureData\\CapturedImage.tif"; // 保存する画像ファイルのパス
-    std::string strDestIpAddr = "192.168.10.40"; // FPDのIPアドレス
-    std::string strSrcIpAddr = "192.168.10.20"; // PCのIPアドレス
-    constexpr unsigned short kusDestPort = 32897; // FPDのポート番号
-    constexpr unsigned short kusSrcPort = 32896; // PCのポート番号
+    wstring wstrPARAMSJSON    = L"D:\\_2026\\CapturerByHBI\\CapturerByHBI_rev2\\DeviceParams.json";              // パラメータを読む JSON ファイル
+    wstring wstrSaveFilePath  = L"D:\\_2026\\CapturerByHBI\\CapturerByHBI_rev2\\CaptureData\\CapturedImage.tif"; // 保存する画像ファイルのパス
+    const std::string kstrDestIpAddr     = "192.168.10.40"; // FPD の IP アドレス
+    const std::string kstrSrcIpAddr      = "192.168.10.20"; // PC の IP アドレス
+    constexpr unsigned short kusDestPort = 32897;           // FPD のポート番号
+    constexpr unsigned short kusSrcPort  = 32896;           // PC のポート番号
 
     CHBIDeviceCtrl cHbiDeviceCtrl;
 
@@ -79,9 +79,9 @@ void CapturerByHBIDlg() {
     cHbiDeviceCtrl.SetCallbackFunction();
 
     // Device の接続
-    cHbiDeviceCtrl.ConnectDevice(&strDestIpAddr, kusDestPort, &strSrcIpAddr, kusSrcPort);
+    cHbiDeviceCtrl.ConnectDevice(&kstrDestIpAddr, kusDestPort, &kstrSrcIpAddr, kusSrcPort);
 
-    //  接続後、安定するまで少し待つ
+    // 接続後、安定するまで少し待つ
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
     // 接続状態の確認。
@@ -108,8 +108,8 @@ void CapturerByHBIDlg() {
         return;
     }
 
-    // ProductCodeをもとに、JSONファイルから撮影パラメータを読み込む。
-    // JSONファイルの内容は、CaptureConfigクラスのコンストラクタで読み取り、撮影パラメータが設定される。
+    // ProductCode をもとに、 JSON ファイルから撮影パラメータを読み込む。
+    // JSON ファイルの内容は、 CaptureConfig クラスのコンストラクタで読み取り、撮影パラメータが設定される。
     CaptureConfig captureConfig(wstrPARAMSJSON, strProductCode);
 
     // 撮影枚数が 0 の場合はエラーとして終了する。
@@ -119,7 +119,7 @@ void CapturerByHBIDlg() {
     }
 
     if (strProductCode == ("X-Panel3030zFDM") && (captureConfig.m_iCaptureAreaHeight % 2 != 0)) {
-        // 3030zの場合は、デュアル読出しのため、中央から等間隔にオフセットする。そのため高さ方向のサイズは偶数である必要がある
+        // 3030z の場合は、デュアル読出しのため、中央から等間隔にオフセットする。そのため高さ方向のサイズは偶数である必要がある
         LOG_INPROGRESSF("6Ysy| Zoom height must be a multiple of 2 for Product Code: %s. Adjusting to nearest even number.", strProductCode.c_str());
         return;
     }
@@ -165,7 +165,7 @@ void CapturerByHBIDlg() {
 
     // 画像を保存する。
     const int kiImageHeight = cHbiDeviceCtrl.GetImageHeight();
-    const int kiImageWidth = cHbiDeviceCtrl.GetImageWidth();
+    const int kiImageWidth  = cHbiDeviceCtrl.GetImageWidth();
     const CArray4D<uint16_t> ka4duiImage = cHbiDeviceCtrl.GetImageBuffer();
 
     SaveImage(ka4duiImage, kiImageWidth, kiImageHeight, wstrSaveFilePath);
@@ -193,7 +193,6 @@ int main()
             CSmartLog::GetiLogFileAccessKeyW(L"CapturerByHBILog.log");
             LOG_BEGINF0(7, "iX1b| MAIN");
             CapturerByHBIDlg();
-            CBigTIFF TiffIn;
         }
     }
     else
