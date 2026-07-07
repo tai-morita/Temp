@@ -8,7 +8,7 @@
 
 struct CaptureConfig {
     int m_iGainType;             // ゲインモード
-    int m_imsExpTime; // 露光時間(マイクロ秒)
+    int m_imsExpTime;            // 露光時間(マイクロ秒)
     int m_iCaptureFrame;         // 取得するフレーム数
     int m_iBinningType;          // ビニングモード
     int m_iOriginalWidth;        // 元画像の幅
@@ -19,7 +19,7 @@ struct CaptureConfig {
     int m_iCaptureAreaHeight;    // 取得する画像の高さ
 
     // 外部から渡された設定ファイルとProductCodeで初期化する
-    CaptureConfig(const std::wstring& wstrParamsJsonPath, const std::string& strProductCode)
+    CaptureConfig(std::wstring& rwstrParamsJsonPath, std::string& rstrProductCode)
         : m_iGainType(0)
         , m_imsExpTime(0)
         , m_iCaptureFrame(0)
@@ -31,39 +31,39 @@ struct CaptureConfig {
         , m_iCaptureAreaWidth(0)
         , m_iCaptureAreaHeight(0)
     {
-        LoadCaptureConfig(wstrParamsJsonPath, strProductCode);
+        LoadCaptureConfig(rwstrParamsJsonPath, rstrProductCode);
     }
 
     /**
      * @brief 保持しているパラメータを初期化する
      */
     void Clear() {
-        m_iGainType = 0;
-        m_imsExpTime = 0;
-        m_iCaptureFrame = 0;
-        m_iBinningType = 0;
-        m_iOriginalWidth = 0;
-        m_iOriginalHeight = 0;
-        m_iCaptureAreaLeft = 0;
-        m_iCaptureAreaTop = 0;
-        m_iCaptureAreaWidth = 0;
+        m_iGainType          = 0;
+        m_imsExpTime         = 0;
+        m_iCaptureFrame      = 0;
+        m_iBinningType       = 0;
+        m_iOriginalWidth     = 0;
+        m_iOriginalHeight    = 0;
+        m_iCaptureAreaLeft   = 0;
+        m_iCaptureAreaTop    = 0;
+        m_iCaptureAreaWidth  = 0;
         m_iCaptureAreaHeight = 0;
     }
 
     /**
      * @brief  指定されたJSONファイルから、指定されたProductCodeに対応する撮影パラメータを読み込み、CaptureConfig構造体に格納する。
-     * @param  wstrParamsJsonPath JSONファイルのパス。
-     * @param  strProductCode     読み込む撮影パラメータに対応するProductCode。
+     * @param  krwstrParamsJsonPath JSONファイルのパス。
+     * @param  krstrProductCode     読み込む撮影パラメータに対応するProductCode。
      */
-    void LoadCaptureConfig(const std::wstring& wstrParamsJsonPath, const std::string& strProductCode) {
+    void LoadCaptureConfig(const std::wstring& krwstrParamsJsonPath, const std::string& krstrProductCode) {
         LOG_BEGINF0(7, "EePC| CaptureConfig::LoadCaptureConfig()");
 
         // SystemConstantsFile等の代用
-        std::ifstream ifs(wstrParamsJsonPath);
+        std::ifstream ifs(krwstrParamsJsonPath);
 
         // ファイルが開けなかった場合はエラーを返す
         if (!ifs.is_open()) {
-            LOG_INPROGRESSF("Ikny| Failed to open: %s", std::string(wstrParamsJsonPath.begin(), wstrParamsJsonPath.end()).c_str());
+            LOG_INPROGRESSF("Ikny| Failed to open: %s", std::string(krwstrParamsJsonPath.begin(), krwstrParamsJsonPath.end()).c_str());
             return;
         }
 
@@ -71,7 +71,7 @@ struct CaptureConfig {
             // JSONファイルの内容を文字列として読み込む
             std::string strParamsJsonText((std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
 
-            std::vector<std::string> vecstrProductCodes; // ProductCodeを格納するベクトル。トップレベルの配列に存在する。
+            std::vector<std::string> vecrstrProductCodes; // ProductCodeを格納するベクトル。トップレベルの配列に存在する。
             std::vector<std::string> vecstrObjectTexts;  // オブジェクトのテキストを格納するベクトル。トップレベルの配列に存在する。
             std::string strCurrentTopLevelString; // トップレベルの配列内の文字列(ProductCode)をキャプチャするための文字列。
             std::size_t iObjectStart = std::string::npos;
@@ -106,7 +106,7 @@ struct CaptureConfig {
                     if (kcCurrentJsonChar == '"') {
                         bIsString = false;
                         if (bIsPushBackString) {
-                            vecstrProductCodes.emplace_back(strCurrentTopLevelString);
+                            vecrstrProductCodes.emplace_back(strCurrentTopLevelString);
                             strCurrentTopLevelString.clear();
                             bIsPushBackString = false;
                         }
@@ -167,7 +167,7 @@ struct CaptureConfig {
             }
 
             // トップレベルの配列内の文字列(ProductCode)とオブジェクトが同数であるか、どちらかが空でないかを確認する。
-            if (vecstrProductCodes.empty() || vecstrObjectTexts.empty() || vecstrProductCodes.size() != vecstrObjectTexts.size()) {
+            if (vecrstrProductCodes.empty() || vecstrObjectTexts.empty() || vecrstrProductCodes.size() != vecstrObjectTexts.size()) {
                 LOG_INPROGRESSF("NVOp| Config format error. Expected [\"ProductCode\", { ... }] pairs.");
                 return;
             }
@@ -178,10 +178,10 @@ struct CaptureConfig {
 
             // オブジェクトごとにProductCodeを比較し、マッチしたオブジェクトのJSONをobjCaptureParamsに格納する。
             for (std::size_t iX = 0; iX < vecstrObjectTexts.size(); ++iX) {
-                const std::string& kstrProductCode = vecstrProductCodes[iX];
-                const std::string& kstrObjectText = vecstrObjectTexts[iX];
+                const std::string& rkrstrProductCode = vecrstrProductCodes[iX];
+                const std::string& rkstrObjectText = vecstrObjectTexts[iX];
 
-                std::istringstream InputStream(kstrObjectText);
+                std::istringstream InputStream(rkstrObjectText);
                 nlohmann::json CurrentObjectText;
                 InputStream >> CurrentObjectText;
                 // JSONのパースに失敗した場合は次のオブジェクトに進む。
@@ -190,14 +190,14 @@ struct CaptureConfig {
                 }
 
                 // ProductCodeがマッチした場合はobjCaptureParamsに格納し、ループを抜ける。
-                if (kstrProductCode == strProductCode) {
+                if (rkrstrProductCode == krstrProductCode) {
                     objCaptureParams = CurrentObjectText;
                     bIsMachProductCode = true;
                     break;
                 }
 
                 // ProductCodeが空のものがあった場合は、objCaptureParamsに格納する。ただし、ProductCodeがマッチした場合は上書きされない。
-                if (!bIsEmptyProductCode && kstrProductCode.empty()) {
+                if (!bIsEmptyProductCode && rkrstrProductCode.empty()) {
                     objCaptureParams = CurrentObjectText;
                     bIsEmptyProductCode = true;
                 }
@@ -205,24 +205,24 @@ struct CaptureConfig {
 
             // 何もマッチしなかった場合はエラーを返す。
             if (!bIsMachProductCode && !bIsEmptyProductCode) {
-                LOG_INPROGRESSF("hD6X| No matching ProductCode in JSON. ProductCode=%s", strProductCode.c_str());
+                LOG_INPROGRESSF("hD6X| No matching ProductCode in JSON. ProductCode=%s", krstrProductCode.c_str());
                 return;
             }
 
-            m_iGainType = objCaptureParams.value("GainType", 0);
-            m_imsExpTime = objCaptureParams.value("millisecExposureTime", 0);
-            m_iCaptureFrame = objCaptureParams.value("CaptureFrame", 0);
-            m_iBinningType = objCaptureParams.value("BinningType", 0);
-            m_iOriginalWidth = objCaptureParams.value("OriginalWidth", 0);
-            m_iOriginalHeight = objCaptureParams.value("OriginalHeight", 0);
-            m_iCaptureAreaLeft = objCaptureParams.value("CaptureAreaLeft", 0);
-            m_iCaptureAreaTop = objCaptureParams.value("CaptureAreaTop", 0);
-            m_iCaptureAreaWidth = objCaptureParams.value("CaptureAreaWidth", 0);
+            m_iGainType          = objCaptureParams.value("GainType", 0);
+            m_imsExpTime         = objCaptureParams.value("millisecExposureTime", 0);
+            m_iCaptureFrame      = objCaptureParams.value("CaptureFrame", 0);
+            m_iBinningType       = objCaptureParams.value("BinningType", 0);
+            m_iOriginalWidth     = objCaptureParams.value("OriginalWidth", 0);
+            m_iOriginalHeight    = objCaptureParams.value("OriginalHeight", 0);
+            m_iCaptureAreaLeft   = objCaptureParams.value("CaptureAreaLeft", 0);
+            m_iCaptureAreaTop    = objCaptureParams.value("CaptureAreaTop", 0);
+            m_iCaptureAreaWidth  = objCaptureParams.value("CaptureAreaWidth", 0);
             m_iCaptureAreaHeight = objCaptureParams.value("CaptureAreaHeight", 0);
 
             // 結果をログに出力する。
             LOG_INPROGRESSF("l7qt| Loaded CaptureConfig for");
-            LOG_INPROGRESSF("steJ|    ProductCode      : %s", strProductCode.c_str());
+            LOG_INPROGRESSF("steJ|    ProductCode      : %s", krstrProductCode.c_str());
             LOG_INPROGRESSF("bI88|    GainType         : %d", m_iGainType);
             LOG_INPROGRESSF("PPPL|    ExposureTime     : %d ms", m_imsExpTime);
             LOG_INPROGRESSF("HiSV|    CaptureFrame     : %d", m_iCaptureFrame);
@@ -235,8 +235,8 @@ struct CaptureConfig {
             LOG_INPROGRESSF("Smr3|    CaptureAreaHeight: %d", m_iCaptureAreaHeight);
         }
 
-        catch (const std::exception& error) {
-            LOG_INPROGRESSF("qz6n| JSON parse error: %s", error.what());
+        catch (const std::exception& rstrerror) {
+            LOG_INPROGRESSF("qz6n| JSON parse error: %s", rstrerror.what());
             return;
         }
         return;

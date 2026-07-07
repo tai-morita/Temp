@@ -10,7 +10,7 @@
 #include <algorithm>
 #include <iomanip>
 
-#include "HBICaptureConfig.h"
+#include "HBIrcaptureConfig.h"
 #include "../Common/HBI_DLL/INCLUDES/HbiError.h"
 #include "../Common/HBI_DLL/INCLUDES/HbiFpd.h"
 #include "../Common/HBI_DLL/INCLUDES/HbiType.h"
@@ -20,6 +20,10 @@
 #include "../CSmartLog/SmartLog.h"
 
 // HBI で通信するデバイスの動作を制御するクラス。
+/**
+ * @brief   HBI SDK を使用して、デバイスの接続、切断、画像取得などの操作を行うクラス。
+ * @details CapturerByHBI 開発の練習として、 SDK を使用して画像取得できるクラスを作成した。
+ */
 class CHBIDeviceCtrl
 {
 private:
@@ -296,33 +300,33 @@ public:
 	 *         現在 3030z の採用予定はない。
 	 *         2520Z は Height 方向のみオフセットが可能。
 	 */
-	bool SetCaptureParams(struct CaptureConfig& captureConfig) {
+	bool SetCaptureParams(const struct CaptureConfig& rcaptureConfig) {
 		LOG_BEGINF0(7, "t4Jj| HBIDeviceCtrl::SetCaptureParams()");
 		if (!IsInitialized()) { return false; }
 		// 取得フレーム数。
-		SetCaptureFrame(captureConfig.m_iCaptureFrame);
+		SetCaptureFrame(rcaptureConfig.m_iCaptureFrame);
 
 		int iResult;
 		{
 			// GainType。
-			LOG_INPROGRESSF("oWAx| Setting GainType     to %d", captureConfig.m_iGainType);
-			iResult = HBI_MSetPGALevel(m_hHBI, captureConfig.m_iGainType);
+			LOG_INPROGRESSF("oWAx| Setting GainType     to %d", rcaptureConfig.m_iGainType);
+			iResult = HBI_MSetPGALevel(m_hHBI, rcaptureConfig.m_iGainType);
 			if (!IsSuccess(iResult)) {
 				return false;
 			}
 		}
 		{
 			// Binning。
-			LOG_INPROGRESSF("cpe2| Setting BinningType  to %d", captureConfig.m_iBinningType);
-			iResult = HBI_MSetBinning(m_hHBI, captureConfig.m_iBinningType);
+			LOG_INPROGRESSF("cpe2| Setting BinningType  to %d", rcaptureConfig.m_iBinningType);
+			iResult = HBI_MSetBinning(m_hHBI, rcaptureConfig.m_iBinningType);
 			if (!IsSuccess(iResult)) {
 				return false;
 			}
 		}
 		{
 			// Exposure time (= 1/fps)。
-			LOG_INPROGRESSF("VJPA| Setting ExposureTime to %d ms", captureConfig.m_imsExpTime);
-			iResult = HBI_MSetSelfDumpingTime(m_hHBI, captureConfig.m_imsExpTime);
+			LOG_INPROGRESSF("VJPA| Setting ExposureTime to %d ms", rcaptureConfig.m_imsExpTime);
+			iResult = HBI_MSetSelfDumpingTime(m_hHBI, rcaptureConfig.m_imsExpTime);
 			if (!IsSuccess(iResult)) {
 				return false;
 			}
@@ -336,23 +340,23 @@ public:
 			*/
 			CMOS_ZOOM_RECT hbiCaptureArea;
 			if (m_strProductCode == "X-Panel3030zFDM") {
-				hbiCaptureArea.utop = (captureConfig.m_iOriginalHeight - captureConfig.m_iCaptureAreaHeight) / 2;
-				hbiCaptureArea.ubottom = hbiCaptureArea.utop + captureConfig.m_iCaptureAreaTop - 1;
+				hbiCaptureArea.utop = (rcaptureConfig.m_iOriginalHeight - rcaptureConfig.m_iCaptureAreaHeight) / 2;
+				hbiCaptureArea.ubottom = hbiCaptureArea.utop + rcaptureConfig.m_iCaptureAreaTop - 1;
 				hbiCaptureArea.uleft = 0;
 				hbiCaptureArea.uright = 0;
 			}
 			else {
-				hbiCaptureArea.utop = captureConfig.m_iCaptureAreaTop;
-				hbiCaptureArea.ubottom = captureConfig.m_iCaptureAreaTop + captureConfig.m_iCaptureAreaHeight - 1;
+				hbiCaptureArea.utop = rcaptureConfig.m_iCaptureAreaTop;
+				hbiCaptureArea.ubottom = rcaptureConfig.m_iCaptureAreaTop + rcaptureConfig.m_iCaptureAreaHeight - 1;
 				hbiCaptureArea.uleft = 0;
 				hbiCaptureArea.uright = 0;
 			}
 			// ZoomWidth, ZoomHeight が 0 の時はフルサイズになるようにする。
-			if (captureConfig.m_iCaptureAreaWidth == 0) {
+			if (rcaptureConfig.m_iCaptureAreaWidth == 0) {
 				hbiCaptureArea.uleft = 0;
 				hbiCaptureArea.uright = 0;
 			}
-			if (captureConfig.m_iCaptureAreaHeight == 0) {
+			if (rcaptureConfig.m_iCaptureAreaHeight == 0) {
 				hbiCaptureArea.utop = 0;
 				hbiCaptureArea.ubottom = 0;
 			}
@@ -610,6 +614,7 @@ private:
 				LOG_INPROGRESSF("Received null image data pointer.");
 				return 0;
 			}
+			LOG_INPROGRESSF("pImageData: %d", pImageData);
 			SaveImageBuffer(pImageData);
 		}
 		return 1;

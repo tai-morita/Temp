@@ -27,10 +27,10 @@ using namespace std;
  * @brief 画像を保存する関数
  * @param a2dusImage 保存する画像データの2次元配列
  * @param iSaveFrame 保存するフレーム数
- * @param kwstrSaveFilePath 保存先のファイルパス
+ * @param krwstrSaveFilePath 保存先のファイルパス
  * @note  4次元配列は(X, Y, Z, T) で格納されており、フレームはT軸で指定されている。
  */
-void SaveImage(const CArray4D<uint16_t> a4duiImage, const int kiImageWidth, const int kiImageHeight, const wstring& kwstrSaveFilePath) {
+void SaveImage(const CArray4D<uint16_t> a4duiImage, const int kiImageWidth, const int kiImageHeight, const wstring& krwstrSaveFilePath) {
     LOG_BEGINF0(7, "HzZX| SaveImage()");
     // データに不具合があった場合は保存せずに終了する。
     // 高さ、幅が一致しない or 入力画像のバッファ長が 0 の場合
@@ -44,10 +44,10 @@ void SaveImage(const CArray4D<uint16_t> a4duiImage, const int kiImageWidth, cons
         return;
     }
     LOG_INPROGRESSF("Oqj2| Saving image data: TotalFrame = %d, Height = %d, Width = %d", a4duiImage.TMin()+1, kiImageHeight, kiImageWidth);
-    LOG_INPROGRESSF("QZrw| Saving image to: %s", std::string(kwstrSaveFilePath.begin(), kwstrSaveFilePath.end()).c_str());
+    LOG_INPROGRESSF("QZrw| Saving image to: %s", std::string(krwstrSaveFilePath.begin(), krwstrSaveFilePath.end()).c_str());
     CBigTIFF tiffOut;
     // BigTIFF 形式で保存する。
-    tiffOut.OpenFileToWrite(kwstrSaveFilePath, CBigTIFF::EWriteFormat::TIFF8);
+    tiffOut.OpenFileToWrite(krwstrSaveFilePath, CBigTIFF::EWriteFormat::TIFF8);
     for (int iFrame = a4duiImage.TMin(); iFrame <= a4duiImage.TMax(); ++iFrame) {
         CArray2D<uint16_t> a2duiTemp(0, kiImageWidth - 1, 0, kiImageHeight - 1);
         a2duiTemp = a4duiImage.Geta2dPlane(0, iFrame);
