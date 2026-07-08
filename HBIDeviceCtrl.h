@@ -11,6 +11,7 @@
 #include <iomanip>
 
 #include "HBICaptureConfig.h"
+#include "HBIERR.h"
 #include "../Common/HBI_DLL/INCLUDES/HbiError.h"
 #include "../Common/HBI_DLL/INCLUDES/HbiFpd.h"
 #include "../Common/HBI_DLL/INCLUDES/HbiType.h"
@@ -28,33 +29,33 @@ class CHBIDeviceCtrl
 {
 private:
 
-	void* m_hHBI;                             // HBISDK のハンドル。これで SDK の関数を呼び出す。
-	bool  m_bIsInitialized;                   // 初期化されているか示すフラグ。
-	uint16_t* m_pImageBuffer;                 // 画像バッファの先頭アドレスを指すポインタ。
-	size_t m_szImageBufferSize;               // 画像バッファのサイズ。
-	bool m_bIsCapturing;                      // 画像取得中かどうかを示すフラグ。
-	int m_iFrameCounter;                      // 取得したフレーム数をカウントする。
-	int m_iCaptureFrame;                      // 取得するフレームの総数。
-	int m_iImageWidth;                        // 取得する画像サイズ(幅)。
-	int m_iImageHeight;                       // 取得する画像サイズ(高さ)。
-	CArray2D<unsigned short> m_a2dusImage;    // 1 フレーム分の画像データを保存する 2 次元配列。
-	CArray4D<uint16_t> m_a4duiImageBuffer;    // 取得した画像データを保存する 4 次元配列。
+	void*                    m_hHBI;              // HBISDK のハンドル。これで SDK の関数を呼び出す。
+	bool                     m_bIsInitialized;    // 初期化されているか示すフラグ。
+	uint16_t*                m_pImageBuffer;      // 画像バッファの先頭アドレスを指すポインタ。
+	size_t                   m_szImageBufferSize; // 画像バッファのサイズ。
+	bool                     m_bIsCapturing;      // 画像取得中かどうかを示すフラグ。
+	int                      m_iFrameCounter;     // 取得したフレーム数をカウントする。
+	int                      m_iCaptureFrame;     // 取得するフレームの総数。
+	int                      m_iImageWidth;       // 取得する画像サイズ(幅)。
+	int                      m_iImageHeight;      // 取得する画像サイズ(高さ)。
+	CArray2D<unsigned short> m_a2dusImage;        // 1 フレーム分の画像データを保存する 2 次元配列。
+	CArray4D<uint16_t>       m_a4duiImageBuffer;  // 取得した画像データを保存する 4 次元配列。
 
 	std::string m_strProductCode;  // デバイスの製品コード。
 
 public:
 	// コンストラクタ。
 	CHBIDeviceCtrl()
-		: m_hHBI(nullptr)
-		, m_bIsInitialized(false)
-		, m_bIsCapturing(false)
-		, m_iFrameCounter(0)
-		, m_iCaptureFrame(0)
-		, m_iImageWidth(0)
-		, m_iImageHeight(0)
-		, m_pImageBuffer(nullptr)
+		: m_hHBI             (nullptr)
+		, m_pImageBuffer     (nullptr)
+		, m_bIsInitialized   (false)
+		, m_bIsCapturing     (false)
+		, m_iFrameCounter    (0)
+		, m_iCaptureFrame    (0)
+		, m_iImageWidth      (0)
+		, m_iImageHeight     (0)
 		, m_szImageBufferSize(0)
-		, m_strProductCode("")
+		, m_strProductCode   ("")
 	{
 		LOG_BEGINF0(7, "GOzh| HBIDeviceCtrl::HBIDeviceCtrl()");
 	}
@@ -67,25 +68,27 @@ public:
 			LOG_INPROGRESSF("2DfC| Stopping capture before destruction.");
 			StopCapture();
 		}
+		// SDK の初期化が完了している場合は、 SDK を終了する。
 		if (IsInitialized()) {
 			HBI_Destroy(m_hHBI);
 			m_bIsInitialized = false;
 		}
+		// 画像バッファが確保されている場合は、解放する。
 		if (m_pImageBuffer != nullptr) {
-			m_pImageBuffer  = nullptr;
+			m_pImageBuffer = nullptr;
 		}
 	}
 
 
 public:
 	// CapturerHBIDlg.cpp からアクセスするためのゲッターメソッド。
-	const size_t GetImageBuf()                 const { return m_szImageBufferSize; } // 画像を取得したバッファサイズを返す。
 	const CArray4D<uint16_t>& GetImageBuffer() const { return m_a4duiImageBuffer; }  // 取得した画像データを返す。
-	const int GetImageWidth()  const { return m_iImageWidth; }      // 画像の幅を返す。
-	const int GetImageHeight() const { return m_iImageHeight; }     // 画像の高さを返す。
+	const int                 GetImageWidth () const { return m_iImageWidth     ; }  // 画像の幅を返す。
+	const int                 GetImageHeight() const { return m_iImageHeight    ; }  // 画像の高さを返す。
 	/**
-	 * @brief  デバイスのシリアル番号を取得する。
-	 * @return 取得に成功した場合はシリアル番号の文字列、失敗した場合は空文字列。
+	 * @brief   デバイスのシリアル番号を取得する。
+	 * @details シリアル番号は 14 bytes で取得される。
+	 * @return  取得に成功した場合はシリアル番号の文字列、失敗した場合は空文字列。
 	 */
 	std::string GetFPDSerialNumber() const {
 		LOG_BEGINF0(7, "uHRU| HBIDeviceCtrl::GetFPDSerialNumber()");
@@ -101,8 +104,9 @@ public:
 		return std::string(cSerialNumber);
 	}
 	/**
-	 * @brief  デバイスの製品コードを取得する。
-	 * @return 取得に成功した場合は製品コードの文字列、失敗した場合は空文字列。
+	 * @brief   デバイスの製品コードを取得する。
+	 * @details 製品コードは 17 bytes 以上で取得される。
+	 * @return  取得に成功した場合は製品コードの文字列、失敗した場合は空文字列。
 	 */
 	std::string GetFPDProductCode() {
 		LOG_BEGINF0(7, "gYAK| HBIDeviceCtrl::GetFPDProductCode()");
@@ -120,13 +124,14 @@ public:
 		return m_strProductCode;
 	}
 	/**
-	 * @brief  SDK のバージョンを取得する。
-	 * @return true: 取得に成功, false: 取得に失敗
+	 * @brief   SDK のバージョンを取得する。
+	 * @details SDK のバージョンは 64 bytes 以上で取得される。
+	 * @return  true: 取得に成功, false: 取得に失敗
 	 */
 	std::string GetSDKVersion() const {
 		LOG_BEGINF0(7, "Clfj| HBIDeviceCtrl::GetSDKVersion()");
 		if (!m_bIsInitialized) { return ""; }
-		// 配列の長さは 64 以上確保する必要がある。
+		// SDK バージョンの取得は 64 bytes 以上確保する必要がある。
 		char cSDKVersion[128] = { 0 };
 
 		int iResult = HBI_GetSDKVerion(m_hHBI, cSDKVersion);
@@ -140,12 +145,12 @@ public:
 public:
 	/**
 	 * @brief   デバイスに接続する。関数を実行する。
+	 * @details IPアドレスを char* 型に変換して、ConnectDevice(char*, unsigned short, char*, unsigned short) を呼び出す。
+	 *          HBI_ConnectDetectorJumbo() が char* 型を要求するため、string* 型の文字列を char* 型に変換する必要がある。
 	 * @param   kpstrDestIpAddr デバイスの IP アドレス。
 	 * @param   kusDestPORT     デバイスのポート番号。
 	 * @param   kpstrSrcIpAddr  PC の IP アドレス。
 	 * @param   kusSrcPort      PC のポート番号。
-	 * @details IPアドレスを char* 型に変換して、ConnectDevice(char*, unsigned short, char*, unsigned short) を呼び出す。
-	 *          HBI_ConnectDetectorJumbo() が char* 型を要求するため、string* 型の文字列を char* 型に変換する必要がある。
 	*/
 	bool ConnectDevice(const std::string* kpstrDestIpAddr, const unsigned short kusDestPORT, const std::string* kpstrSrcIpAddr, const unsigned short kusSrcPort) {
 		LOG_BEGINF0(7, "GUGw| HBIDeviceCtrl::ConnectDevice()");
@@ -156,7 +161,7 @@ public:
 		char* pcDestIpAddr = new char[szDestIpAddrBuffLen];
 		char* pcSrcIpAddr  = new char[szSrcIpAddrBuffLen];
 		memcpy_s(pcDestIpAddr, szDestIpAddrBuffLen, kpstrDestIpAddr->c_str(), szDestIpAddrBuffLen);
-		memcpy_s(pcSrcIpAddr , szSrcIpAddrBuffLen , kpstrSrcIpAddr->c_str() , szSrcIpAddrBuffLen);
+		memcpy_s(pcSrcIpAddr , szSrcIpAddrBuffLen , kpstrSrcIpAddr ->c_str(), szSrcIpAddrBuffLen);
 
 		bool iResult = ConnectDevice(pcDestIpAddr, kusDestPORT, pcSrcIpAddr, kusSrcPort);
 		if (iResult) { bIsSuccess = true ; }
@@ -194,7 +199,7 @@ public:
 			LOG_INPROGRESSF("OtZV| Release HBI handle.");
 			HBI_Destroy(m_hHBI);
 			// 未初期化状態にする
-			m_hHBI = nullptr;
+			m_hHBI           = nullptr;
 			m_bIsInitialized = false;
 		}
 		return true;
@@ -212,15 +217,25 @@ public:
 		}
 		// 初期化処理
 		m_hHBI = HBI_Init(0);
-		if (m_hHBI)  { m_bIsInitialized = true ; }
-		else         { m_bIsInitialized = false; }
+		// 初期化フラグの更新
+		if (m_hHBI) { m_bIsInitialized = true ; }
+		else        { m_bIsInitialized = false; }
 		return m_bIsInitialized;
 	}
 	/**
 	 * @brief   SDK のイベントコールバック関数を設定する。
 	 * @details イベントが起こった時、SDK が this ポインタを引数として UserHBICallback を呼び出す。
+	 * @return  true: 成功, false: 失敗
 	 */
-	void SetCallbackFunction() { HBI_RegEventCallBackFun(m_hHBI, UserHBICallback, this); }
+	bool SetCallbackFunction() {
+		LOG_BEGINF0(7, "dXzg| HBIDeviceCtrl::SetCallbackFunction()");
+		int iResult = HBI_RegEventCallBackFun(m_hHBI, UserHBICallback, this);
+		if (!IsSuccess(iResult)) {
+			LOG_INPROGRESSF("rirp| HBI_RegEventCallBackFun failed.");
+			return false;
+		}
+		return true;
+	}
 
 	/**
 	 * @brief  デバイスが接続されているか確認する。
@@ -240,8 +255,8 @@ public:
 
 	/**
 	 * @brief  現在のキャプチャパラメータをログに出力する。
-	 * @return true: 出力に成功, false: 出力に失敗
 	 * @note   デバッグとして使用する。
+	 * @return true: 出力に成功, false: 出力に失敗
 	 */
 	bool PrintCaptureParams() const {
 		LOG_BEGINF0(7, "KaJ2| HBIDeviceCtrl::PrintCaptureParams()");
@@ -287,7 +302,7 @@ public:
 			}
 			// 出力用に fps を計算する。
 			float ffps = 1.0f / static_cast<float>(imsExpTime) * 1000.0f;
-			LOG_INPROGRESSF("1UKJ|   Exposure Time (ms): %d ms", imsExpTime);
+			LOG_INPROGRESSF("1UKJ|   Exposure Time (ms): %d ms"   , imsExpTime);
 			LOG_INPROGRESSF("6aqO|   Frame Rate (fps)  : %.2f fps", ffps);
 		}
 		return true;
@@ -295,69 +310,68 @@ public:
 
 	/**
 	 * @brief  キャプチャパラメータを設定する。
-	 * @param  rcaptureConfig: 設定するキャプチャパラメータを保持する構造体。
+	 * @param  krcaptureConfig: 設定するキャプチャパラメータを保持する構造体。
 	 * @return true: 設定に成功, false: 設定に失敗
-	 * @note   3030z デュアル読出しのため、Width はフルエリア、Height は中心から等間隔にオフセットする必要がある。
-	 *         現在 3030z の採用予定はない。
+	 * @note   3030Z デュアル読出しのため、Width はフルエリア、Height は中心から等間隔にオフセットする必要がある。
+	 *         現在 3030Z の採用予定はない。
 	 *         2520Z は Height 方向のみオフセットが可能。
 	 */
-	bool SetCaptureParams(const struct CaptureConfig& rcaptureConfig) {
+	bool SetCaptureParams(const struct CCaptureConfig& krcaptureConfig) {
 		LOG_BEGINF0(7, "t4Jj| HBIDeviceCtrl::SetCaptureParams()");
 		if (!IsInitialized()) { return false; }
-		// 取得フレーム数。
-		SetCaptureFrame(rcaptureConfig.m_iCaptureFrame);
+		// 取得フレーム数
+		SetCaptureFrame(krcaptureConfig.m_iCaptureFrame);
 
 		int iResult;
 		{
-			// GainType。
-			LOG_INPROGRESSF("oWAx| Setting GainType     to %d", rcaptureConfig.m_iGainType);
-			iResult = HBI_MSetPGALevel(m_hHBI, rcaptureConfig.m_iGainType);
+			// GainType
+			LOG_INPROGRESSF("oWAx| Setting GainType     to %d", krcaptureConfig.m_iGainType);
+			iResult = HBI_MSetPGALevel(m_hHBI, krcaptureConfig.m_iGainType);
 			if (!IsSuccess(iResult)) {
 				return false;
 			}
 		}
 		{
-			// Binning。
-			LOG_INPROGRESSF("cpe2| Setting BinningType  to %d", rcaptureConfig.m_iBinningType);
-			iResult = HBI_MSetBinning(m_hHBI, rcaptureConfig.m_iBinningType);
+			// Binning
+			LOG_INPROGRESSF("cpe2| Setting BinningType  to %d", krcaptureConfig.m_iBinningType);
+			iResult = HBI_MSetBinning(m_hHBI, krcaptureConfig.m_iBinningType);
 			if (!IsSuccess(iResult)) {
 				return false;
 			}
 		}
 		{
-			// Exposure time (= 1/fps)。
-			LOG_INPROGRESSF("VJPA| Setting ExposureTime to %d ms", rcaptureConfig.m_imsExpTime);
-			iResult = HBI_MSetSelfDumpingTime(m_hHBI, rcaptureConfig.m_imsExpTime);
+			// Exposure time (= 1/fps)
+			LOG_INPROGRESSF("VJPA| Setting ExposureTime to %d ms", krcaptureConfig.m_imsExpTime);
+			iResult = HBI_MSetSelfDumpingTime(m_hHBI, krcaptureConfig.m_imsExpTime);
 			if (!IsSuccess(iResult)) {
 				return false;
 			}
 		}
 		{
-			/* ROI の設定。
-			* 横方向は設定ができない。
-			* 3030zはデュアル読出しのため、中央から等間隔にオフセットする必要がある。そのため縦方向のサイズは偶数である必要がある。
-			* 2520zはシングル読出しのため、縦方向のオフセットは自由にできる。
-			* uleft, utop, uright, ubottom = 0 の時はフルサイズとなる。
-			*/
+			/* ROI の設定
+			 * 横方向は設定ができない。
+			 * 3030zはデュアル読出しのため、中央から等間隔にオフセットする必要がある。そのため縦方向のサイズは偶数である必要がある。
+			 * 2520zはシングル読出しのため、縦方向のオフセットは自由にできる。
+			 * uleft, utop, uright, ubottom = 0 の時はフルサイズとなる。
+			 */
 			CMOS_ZOOM_RECT hbiCaptureArea;
 			if (m_strProductCode == "X-Panel3030zFDM") {
-				hbiCaptureArea.utop    = (rcaptureConfig.m_iOriginalHeight - rcaptureConfig.m_iCaptureAreaHeight) / 2;
-				hbiCaptureArea.ubottom = hbiCaptureArea.utop + rcaptureConfig.m_iCaptureAreaTop - 1;
+				hbiCaptureArea.utop    = (krcaptureConfig.m_iOriginalHeight - krcaptureConfig.m_iCaptureAreaHeight) / 2;
+				hbiCaptureArea.ubottom = hbiCaptureArea.utop + krcaptureConfig.m_iCaptureAreaTop - 1;
 				hbiCaptureArea.uleft   = 0;
 				hbiCaptureArea.uright  = 0;
-			}
-			else {
-				hbiCaptureArea.utop    = rcaptureConfig.m_iCaptureAreaTop;
-				hbiCaptureArea.ubottom = rcaptureConfig.m_iCaptureAreaTop + rcaptureConfig.m_iCaptureAreaHeight - 1;
+			} else {
+				hbiCaptureArea.utop    = krcaptureConfig.m_iCaptureAreaTop;
+				hbiCaptureArea.ubottom = krcaptureConfig.m_iCaptureAreaTop + krcaptureConfig.m_iCaptureAreaHeight - 1;
 				hbiCaptureArea.uleft   = 0;
 				hbiCaptureArea.uright  = 0;
 			}
 			// ZoomWidth, ZoomHeight が 0 の時はフルサイズになるようにする。
-			if (rcaptureConfig.m_iCaptureAreaWidth == 0) {
+			if (krcaptureConfig.m_iCaptureAreaWidth == 0) {
 				hbiCaptureArea.uleft  = 0;
 				hbiCaptureArea.uright = 0;
 			}
-			if (rcaptureConfig.m_iCaptureAreaHeight == 0) {
+			if (krcaptureConfig.m_iCaptureAreaHeight == 0) {
 				hbiCaptureArea.utop    = 0;
 				hbiCaptureArea.ubottom = 0;
 			}
@@ -388,7 +402,7 @@ public:
 
 		// 画像バッファを確保する。
 		// どれかの値が 0 の場合はバッファを確保しない。
-		if (!m_iImageWidth || !m_iImageHeight || !kiCaptureFrame) {
+		if (!(m_iImageWidth && m_iImageHeight && kiCaptureFrame)) {
 			LOG_INPROGRESSF("BmI3| Cannot allocate image buffer. Invalid parameters: Width=%d, Height=%d, CaptureFrame=%d",
 				m_iImageWidth, m_iImageHeight, kiCaptureFrame);
 			return false;
@@ -488,29 +502,29 @@ private:
 		return true;
 	}
 	/**
-	 * @brief  HBI の関数の処理が成功したか否かを判定する。
-	 * @param  iResult: HBI の関数の戻り値。
-	 * @return true: 成功, false: 失敗
+	 * @brief   HBI の関数の処理が成功したか否かを判定する。
+	 * @details 失敗した場合は、エラーコードをログに出力する。
+	 * @param   iResult: HBI の関数の戻り値。
+	 * @return  true: 成功, false: 失敗
 	 */
 	bool IsSuccess(const int kiResult) const {
-		LOG_BEGINF0(2, "UCQS| HBIDeviceCtrl::IsSuccess()");
+		LOG_BEGINF0(2, "UCQS| HBIDeviceCtrl::IsSuccess(kiResult = %d)", kiResult);
+		HBIRETCODE hbierr = static_cast<HBIRETCODE>(kiResult);
 		if (kiResult == HBI_SUCCSS) {
 			return true;
+		} else {
+			LOG_INPROGRESSF("9y9z| Error: %s", CHBIERRStr(hbierr).c_str());
+			return false;
 		}
-		int iErrorCode = static_cast<int>(sizeof(CrErrStrList) / sizeof(CrErrStrList[0]));
-		LOG_INPROGRESSF("GFXI| HBI function failed. iErrorCode=%d, iResult=%d", iErrorCode, kiResult);
-		const char* pcErrorMessage = HBI_GetError(CrErrStrList, iErrorCode, kiResult);
-		LOG_INPROGRESSF("RJVh| Error message: %s", pcErrorMessage);
-		return false;
 	}
 
 	/**
-	 * @brif 取得するフレーム数を設定する。
+	 * @brief 取得するフレーム数を設定する。
 	 */
 	void SetCaptureFrame(int iCaptureFrame) { m_iCaptureFrame = iCaptureFrame; }
 
 	/**
-	 * @brif SDK が初期化されているか判断する。
+	 * @brief SDK が初期化されているか判断する。
 	 */
 	bool IsInitialized() const { return m_bIsInitialized; }
 
@@ -531,7 +545,7 @@ private:
 		}
 
 		// 取得したフレーム数だけオフセットする。
-		const int kiFramePixelCount = m_iImageWidth * m_iImageHeight;
+		const int    kiFramePixelCount = m_iImageWidth * m_iImageHeight;
 		const size_t kszOffsetBuffSize = static_cast<size_t>(m_iFrameCounter * kiFramePixelCount);
 
 		try {
@@ -541,7 +555,8 @@ private:
 				pImageData,                                                   // コピー元のバッファの先頭アドレス
 				kiFramePixelCount * sizeof(uint16_t)                          // コピーするバイト数
 			);
-		} catch (const std::exception& eError) {
+		}
+		catch (const std::exception& eError) {
 			LOG_INPROGRESSF("RLIT| Exception occurred while saving image data: %s", eError.what());
 			return false;
 		}
@@ -564,11 +579,11 @@ private:
 	 * @return  1 を返す。
 	 * @details SDK の仕様上、コールバック関数は static メソッドかつ int 型の関数である必要がある。
 	 */
-	static int UserHBICallback(void* pContext, int ifpdId, unsigned char uceventId, void* peventParam1, int ieventParam2, int ieventParam3, int ieventParam4){
+	static int UserHBICallback(void* pContext, int ifpdId, unsigned char uceventId, void* peventParam1, int ieventParam2, int ieventParam3, int ieventParam4) {
 		// SDK側で取得したポインタを CHBIDeviceCtrl クラスのオブジェクトのポインタとしてキャストする。
 		CHBIDeviceCtrl* pCHBIDeviceCtrl = static_cast<CHBIDeviceCtrl*>(pContext);
 		if (!pCHBIDeviceCtrl) { return 0; }
-		pCHBIDeviceCtrl->OnHBICallback(ifpdId, uceventId, peventParam1, ieventParam2, ieventParam3, ieventParam4 );
+		pCHBIDeviceCtrl->OnHBICallback(ifpdId, uceventId, peventParam1, ieventParam2, ieventParam3, ieventParam4);
 		return 1;
 	}
 
@@ -581,7 +596,7 @@ private:
 	 * @param  ieventParam3   イベントに関するパラメータ
 	 * @param  ieventParam4   イベントに関するパラメータ
 	 */
-	void OnHBICallback(int ifpdId, unsigned char uceventId, void* peventParam1, int ieventParam2, int ieventParam3, int ieventParam4){
+	void OnHBICallback(int ifpdId, unsigned char uceventId, void* peventParam1, int ieventParam2, int ieventParam3, int ieventParam4) {
 		LOG_BEGINF0(2, "6P6w| CHBIDeviceCtrl::OnHBICallback()");
 		// peventParam1 以外は使っていないが、 SDK の仕様上、引数として受け取る必要がある。
 		(void)ifpdId;

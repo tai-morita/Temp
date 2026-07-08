@@ -6,7 +6,7 @@
 #include "../Common/nlohmann/json.hpp"
 #include "../CSmartLog/SmartLog.h"
 
-struct CaptureConfig {
+struct CCaptureConfig {
     int m_iGainType;             // ゲインモード
     int m_imsExpTime;            // 露光時間(マイクロ秒)
     int m_iCaptureFrame;         // 取得するフレーム数
@@ -22,7 +22,7 @@ struct CaptureConfig {
     std::vector<std::string> m_vecstrObjectTexts;  // オブジェクトのテキストを格納するベクトル。トップレベルの配列に存在する。
 
     // 外部から渡された設定ファイルとProductCodeで初期化する
-    CaptureConfig(std::wstring& rwstrParamsJsonPath, std::string& rstrProductCode)
+    CCaptureConfig(std::wstring& rwstrParamsJsonPath, std::string& rstrProductCode)
     {
         LOG_BEGINF0(7, "5s8E| CaptureConfig::CaptureConfig()");
         Clear();
@@ -42,8 +42,7 @@ struct CaptureConfig {
             LOG_INPROGRESSF("2NYy|    CaptureAreaTop   : %d"   , m_iCaptureAreaTop);
             LOG_INPROGRESSF("jrHQ|    CaptureAreaWidth : %d"   , m_iCaptureAreaWidth);
             LOG_INPROGRESSF("Smr3|    CaptureAreaHeight: %d"   , m_iCaptureAreaHeight);
-        }
-        else {
+        } else {
             LOG_INPROGRESSF("l7qt| Failed to load CaptureConfig for Product Code: %s", rstrProductCode.c_str());
         }
     }
