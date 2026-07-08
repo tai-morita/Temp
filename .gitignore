@@ -9,6 +9,7 @@ CapturerByHBI/vcpkg/
 CapturerByHBI/vcpkg_utils/
 CapturerByHBI/html
 CapturerByHBI/latex
+doxygen
 
 # Ignore non-C++ source/header extensions
 *.bash
