@@ -7,16 +7,30 @@
 #include "../CSmartLog/SmartLog.h"
 
 struct CCaptureConfig {
-    int m_iGainType;          //!< ゲインモード: 1 から 11 までの整数値で表される
-	int m_imsExposureTime;    //!< 露光時間(ミリ秒)
-	int m_iCaptureFrame;      //!< 取得するフレーム数
-	int m_iBinningType;       //!< ビニングモード: 1 = 1x1, 2 = 2x2, 3 = 3x3, 4 = 4x4
-	int m_iOriginalWidth;     //!< 元画像の幅
-	int m_iOriginalHeight;    //!< 元画像の高さ
-	int m_iCaptureAreaLeft;   //!< 取得領域の左端座標
-	int m_iCaptureAreaTop;    //!< 取得領域の上端座標
-	int m_iCaptureAreaWidth;  //!< 取得領域の幅
-	int m_iCaptureAreaHeight; //!< 取得領域の高さ
+    /** @brief ゲインモード
+	*   @details モードは 1 から 11 までの整数値で表される
+    */
+    int m_iGainType;
+    /** @brief 露光時間(ミリ秒) */
+    int m_imsExposureTime;        // ms
+    /** @brief 取得するフレーム数。 */
+    int m_iCaptureFrame;
+    /** @brief ビニングモード
+	*   @details 1 = 1x1, 2 = 2x2, 3 = 3x3, 4 = 4x4
+    */
+    int m_iBinningType;
+    /** @brief 元画像の幅 */
+    int m_iOriginalWidth;
+    /** @brief 元画像の高さ */
+    int m_iOriginalHeight;
+    /** @brief 取得領域の左端座標 */
+    int m_iCaptureAreaLeft;
+    /** @brief 取得領域の上端座標 */
+    int m_iCaptureAreaTop;
+    /** @brief 取得領域の幅 */
+    int m_iCaptureAreaWidth;
+    /** @brief 取得領域の高さ */
+    int m_iCaptureAreaHeight;
 
     /**
      * @brief JSON ファイル内の ProductCode を格納するベクトル。トップレベルの配列に格納されている。
@@ -40,6 +54,9 @@ struct CCaptureConfig {
         bool bIsFindCaptureConfig = FindCaptureConfig(krstrProductCode);
         if (bIsLoadJsonFile && bIsFindCaptureConfig) {
             // 成功した場合はログに出力する。
+            // memo: 「~の設定を読み込みました。（→パラメータを出力）」なら理解できるが、
+            // 「（全てのパラメータ）のコンフィグファイルを読みました」は書き方が適切なのか。
+            // 「読み込んだパラメータは～」では？
             LOG_INPROGRESSF("l7qt| Loaded CaptureConfig for");
             LOG_INPROGRESSF("steJ|    Product Code       : %s"   , krstrProductCode.c_str());
             LOG_INPROGRESSF("bI88|    Gain Type          : %d"   , m_iGainType);
@@ -88,7 +105,7 @@ struct CCaptureConfig {
         std::size_t szObjectStart = std::string::npos;
         int iArrayDepth                      = 0;     // トップレベルの配列の深さを追跡するための変数。
         int iObjectDepth                     = 0;     // オブジェクトの深さを追跡するための変数。
-        bool bIsString                       = false; // 文字列の中にいるかどうかを追跡するための変数。
+        bool bIsString                       = false; // 文字列の中にいるかどうかを追跡するための変数。 // memo: bIsInStringでは
         bool bIsEscaped                      = false; // 文字列内でエスケープされているかどうかを追跡するための変数。
         bool bIsPushBackString               = false; // 文字列をベクトルに追加するかどうかを追跡するための変数。
         std::string strCurrentTopLevelString = "";    // トップレベルの配列内の文字列(ProductCode)をキャプチャするための変数。
@@ -208,18 +225,22 @@ struct CCaptureConfig {
         return true;
     }
 
+    // memo: 「krstrProductCode と krstrProductCode が一致するオブジェクト」の意味が分からない。
+    // 返り値は成功・失敗ではない？
     /**
-     * @brief     指定されたProductCodeに対応するオブジェクトのテキストを取得する。
+     * @brief     指定されたProductCodeに対応するオブジェクトのテキストを取得する。 // memo: スペースがない
      * @param[in] krstrProductCode ProductCode
 	 * @details   krstrProductCode と krstrProductCode が一致するオブジェクトを探し、krstrObjectText をメンバ変数に格納する。
 	 * @return    true: Product Code が見つかった。 false: 見つからなかった。
      */
     bool FindCaptureConfig(const std::string& rstrTargetProductCode) {
         LOG_BEGINF0(7, "Dgw4| CaptureConfig::FindCaptureConfig()");
-        nlohmann::json objCaptureParams;
-        bool bIsMatchedProductCode = false;
-        bool bIsEmptyProductCode   = false;
+        // memo: ↓の変数は最初のチェック後に宣言した方がよいのでは？
+        nlohmann::json objCaptureParams; // memo: objCaptureParamsは"obj"なので統一した方が理解しやすい
+        bool bIsMatchedProductCode = false; // memo: bIsProductCodeMatched?(自信ないです)
+        bool bIsEmptyProductCode   = false; // memo: bIsProductCodeEmpty?
 
+        // memo: vec~s のsは冗長では？どこかで指摘していたと思うので、他もチェックしてください。
         // ProductCode とオブジェクトのテキストが空の場合は、ログに出力して false を返す。
         if (m_vecstrProductCodes.empty() || m_vecstrObjectTexts.empty()) {
             LOG_INPROGRESSF("kZQH| No ProductCodes or ObjectTexts found in JSON.");
@@ -247,6 +268,7 @@ struct CCaptureConfig {
                 break;
             }
 
+            // memo: 関数のコメントでこれが分からないので、関数自体のコメントにも書いた方がいいと思います。
             // ProductCode が空の設定をフォールバックとして保持する。
             if (!bIsEmptyProductCode && krstrProductCode.empty()) {
                 objCaptureParams = objectText;
@@ -254,12 +276,15 @@ struct CCaptureConfig {
             }
         }
 
+		// memo: config file に krstrTargetProductCode が存在しない場合～
+        // !(bIsMatchedProductCode || bIsEmptyProductCode)
         // ProductCode が一致しなかった場合、かつ空のProductCodeが見つからなかった場合は、ログに出力して false を返す。
         if (!bIsMatchedProductCode && !bIsEmptyProductCode) {
             LOG_INPROGRESSF("dBqE| No matching ProductCode in JSON. ProductCode=%s", rstrTargetProductCode.c_str());
             return false;
         }
 
+		// memo: 下の処理が Find～() の役割ではない場合、関数外に出した方がよい。
         m_iGainType          = objCaptureParams.value("GainType"         , 0);
         m_imsExposureTime    = objCaptureParams.value("msExposureTime"   , 0);
         m_iCaptureFrame      = objCaptureParams.value("CaptureFrame"     , 0);

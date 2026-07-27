@@ -22,6 +22,8 @@ CWinApp theApp;
 
 using namespace std;
 
+// memo: param の一つ目が誤り。
+// details の内容はこの関数の説明ではなさそう。←格納しているのはこの関数ではないため。paramに記載するかnoteの方が適切？
 /**
  * @brief  画像を保存する関数
  * @details 4 次元配列は(X, Y, Z, T) で格納されており、フレームは T 軸で指定されている。
@@ -59,6 +61,7 @@ bool SaveImage(const CArray4D<uint16_t> ka4duiImage, const int kiImageWidth, con
     return true;
 }
 
+// memo: クラス名と関数名を同じにしない方がよいと思う。準備・キャプチャ・切断とかに分けた方がいいと思う。1つにまとめたいんだった他の名前を検討すべき。
 /**
 * @brief  HBI SDK を使用して、デバイスの接続、切断、画像取得などの操作を行う関数
 * @details CapturerByHBI 開発の練習として、 SDK を使用して画像取得できる関数を作成した。
@@ -67,7 +70,7 @@ bool SaveImage(const CArray4D<uint16_t> ka4duiImage, const int kiImageWidth, con
 bool CapturerByHBIDlg() {
     LOG_BEGINF0(7, "3HGr| MAIN: CapturerByHBIDlg()");
     const wstring kwstrPARAMSJSONPATH    = LR"(D:\_2026\CapturerByHBI\CapturerByHBI_rev2\DeviceParams.json)";              // パラメータを読む JSON ファイル
-    const wstring kwstrSAVEFILEPATH      = LR"(D:\_2026\CapturerByHBI\CapturerByHBI_rev2\CaptureData\CapturedImage.tif)";  // 保存する画像ファイルのパス
+    const wstring kwstrSaveFilePath      = LR"(D:\_2026\CapturerByHBI\CapturerByHBI_rev2\CaptureData\CapturedImage.tif)";  // 保存する画像ファイルのパス
     const std::string kstrDestIpAddr     = "192.168.10.40"; // FPD の IP アドレス
     const std::string kstrSrcIpAddr      = "192.168.10.20"; // PC の IP アドレス
     constexpr unsigned short kusDestPort = 32897;           // FPD のポート番号
@@ -86,6 +89,7 @@ bool CapturerByHBIDlg() {
         return false;
     }
 
+    // memo: ここで return したら後ろのリトライは意味無い。
     // Device の接続
     if (!hbiDeviceCtrl.ConnectDevice(&kstrDestIpAddr, kusDestPort, &kstrSrcIpAddr, kusSrcPort)) {
         return false;
@@ -93,12 +97,16 @@ bool CapturerByHBIDlg() {
 
 	// デバイスが接続されるまで、最大 5 回までリトライする。
     // 2回 ConnectDevice を呼び出すのは冗長?
+    // memo: ↑の ConnectDevice が不要なのでは？↓の ConnectDevice で規定回数失敗したら false を返した方がいいと思う。
     int iRetryCount = 0;
 	while (iRetryCount++ < 5 && !hbiDeviceCtrl.IsDeviceConnected()) {
 		LOG_INPROGRESSF("Device is not connected. Retrying... iRetryCount = %d", iRetryCount);
 		hbiDeviceCtrl.ConnectDevice(&kstrDestIpAddr, kusDestPort, &kstrSrcIpAddr, kusSrcPort);
 		std::this_thread::sleep_for(std::chrono::milliseconds(500));
 	}
+
+    // memo: 下でバージョン等を取得しているが出力していない？
+    // 取得できるか試す目的？製品コードとシリアル番号は残しておいた方が後で役立つと思う。
 
     // HBI SDK のバージョンを取得する。
     const std::string kstrSDKVersion = hbiDeviceCtrl.GetSDKVersion();
@@ -132,6 +140,7 @@ bool CapturerByHBIDlg() {
 
     if (kstrProductCode == ("X-Panel3030zFDM") && (captureConfig.m_iCaptureAreaHeight % 2 != 0)) {
         // 3030z の場合は、デュアル読出しのため、中央から等間隔にオフセットする。そのため高さ方向のサイズは偶数である必要がある
+        // memo: ログに Failed とか Error とか書かなくてもいい？
         LOG_INPROGRESSF("6Ysy| Zoom height must be a multiple of 2 for Product Code: %s. Adjusting to nearest even number.", kstrProductCode.c_str());
         return false;
     }
@@ -169,6 +178,7 @@ bool CapturerByHBIDlg() {
     if (!hbiDeviceCtrl.StartCapture()) {
 		LOG_INPROGRESSF("Failed to start capture");
         return false;       
+        // memo: false; の後ろに謎のスペース
     }
 
     // 50 ms ごとにキャプチャ中かどうかを確認する。
@@ -176,15 +186,19 @@ bool CapturerByHBIDlg() {
         std::this_thread::sleep_for(std::chrono::milliseconds(50));
     }
 
+	// memo: キャプチャ中じゃなかったらすでに StopCapture() されているのでは？単純な疑問
     // キャプチャ終了
 	if (!hbiDeviceCtrl.StopCapture()) {
 		LOG_INPROGRESSF("Failed to stop capture");
 		return false;
 	}
 
+    // memo: "出ない"←誤字
 	// キャプチャ枚数が指定枚数出ない場合はエラーとして終了する。
     // memo: 異常終了時の処理は未実装。Capturer開発の時にDCAMを参考に実装します。
+    //       → OKです。
 	if (hbiDeviceCtrl.GetCapturedFrameCount() != captureConfig.m_iCaptureFrame) {
+        // memo: このログも Error とか Failed とか書いた方がよさそう。Error: ~ みたいな風に書いてます。正解かわからないので3dxdの他のコード参考にしてみてください。
 		LOG_INPROGRESSF("Captured frame count (%d) does not match expected frame count (%d)", hbiDeviceCtrl.GetCapturedFrameCount(), captureConfig.m_iCaptureFrame);
 		return false;
 	}
@@ -192,6 +206,7 @@ bool CapturerByHBIDlg() {
     // デバイスの接続を切断する。
     hbiDeviceCtrl.DisconnectDevice();
 
+    // memo: 異常終了時の処理は未実装とのことだったので余計かもしれませんが、途中で撮影終わってもSaveしておいてよさそう。
     // 画像を保存する。
     const int kiImageHeight = hbiDeviceCtrl.GetImageHeight();
     const int kiImageWidth  = hbiDeviceCtrl.GetImageWidth();

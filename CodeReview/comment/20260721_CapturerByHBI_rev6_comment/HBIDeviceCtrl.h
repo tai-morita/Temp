@@ -20,6 +20,13 @@
 #include "../Array/Array4D.h"
 #include "../CSmartLog/SmartLog.h"
 
+// memo:
+// 全体的に
+// const をつけれるところはつけた方がいいと思います。
+// HBIType の中にある構造体の変数の prefix の多くが hbi になっているので、構造体を示す hbiXXX にした方がいいと思います。
+// SDK と書いているところが本当に SDK なのか気になります。SDK の初期化など。
+// 他に影響があって関数名に記載していない処理はなるべく避けた方がいいと思います。
+
 // HBI で通信するデバイスの動作を制御するクラス。
 /**
  * @brief   HBI SDK を使用して、デバイスの接続、切断、画像取得などの操作を行うクラス。
@@ -29,20 +36,33 @@ class CHBIDeviceCtrl
 {
 private:
 
-	void*                    m_hHBI;              //!< HBISDK のハンドル。これで SDK の関数を呼び出す
-	bool                     m_bIsInitialized;    //!<初期化されているか示すフラグ
-	bool                     m_bIsCapturing;      //!< 画像取得中かどうかを示すフラグ
-	uint16_t*                m_pImageBuffer;      //!< 画像バッファの先頭アドレスを指すポインタ
-	size_t                   m_szImageBufferSize; //!< 画像バッファのサイズ
-	int                      m_iFrameCounter;     //!< 取得したフレーム数をカウントする
-	int                      m_iCaptureFrame;     //!< 取得するフレームの総数
-	int                      m_iImageWidth;       //!< 取得する画像サイズ(幅)
-	int                      m_iImageHeight;      //!< 取得する画像サイズ(高さ)
-	CArray2D<unsigned short> m_a2dusImage;        //!< 1 フレーム分の画像データを保存する 2 次元配列
-	CArray4D<uint16_t>       m_a4duiImageBuffer;  //!< 取得した画像データを保存する 4 次元配列
-	std::string              m_strProductCode;    //!< デバイスの製品コード
+	/** @brief HBISDK のハンドル。これで SDK の関数を呼び出す */
+	void*                    m_hHBI;
+	/** @brief 初期化されているか示すフラグ */
+	bool                     m_bIsInitialized;
+	/** @brief 画像取得中かどうかを示すフラグ */
+	bool                     m_bIsCapturing;
+	/** @brief 画像バッファの先頭アドレスを指すポインタ */
+	uint16_t*                m_pImageBuffer;
+	/** @brief 画像バッファのサイズ */
+	size_t                   m_szImageBufferSize;
+	/** @brief 取得したフレーム数をカウントする */
+	int                      m_iFrameCounter;
+	/** @brief 取得するフレームの総数 */
+	int                      m_iCaptureFrame;
+	/** @brief 取得する画像サイズ(幅) */
+	int                      m_iImageWidth;
+	/** @brief 取得する画像サイズ(高さ) */
+	int                      m_iImageHeight;
+	/** @brief 1 フレーム分の画像データを保存する 2 次元配列 */ 
+	CArray2D<unsigned short> m_a2dusImage;
+	/** @brief 取得した画像データを保存する 4 次元配列 */
+	CArray4D<uint16_t>       m_a4duiImageBuffer;
+	/** @brief デバイスの製品コード */
+	std::string m_strProductCode;
 
 public:
+	// memo: doxygen コメントじゃない
 	// コンストラクタ。
 	CHBIDeviceCtrl()
 		: m_hHBI             (nullptr)
@@ -126,6 +146,7 @@ public:
 		return std::string(cSerialNumber);
 	}
 
+	// memo: Getter は メンバ変数への格納をしない方がいいと思います。
 	/**
 	 * @brief   デバイスの製品コードを取得する。
 	 * @details 製品コードは 17 bytes 以上で取得される。
@@ -179,17 +200,17 @@ public:
 	*/
 	bool ConnectDevice(const std::string* kpstrDestIpAddr, const unsigned short kusDestPort, const std::string* kpstrSrcIpAddr, const unsigned short kusSrcPort) {
 		LOG_BEGINF0(7, "GUGw| HBIDeviceCtrl::ConnectDevice()");
-		bool bIsSuccess = false;
-		// SDK に渡すIPアドレスは const ではないため、メモリを確保して char* 型に変換する。
+		bool bIsSuccess = false; // memo: この関数は最後の方で使用しているだけなので、そっちに持って行った方がいいと思います。
+		// SDK に渡すIPアドレスは const ではないため、メモリを確保して char* 型に変換する。 memo: IP にスペースがない
 		const size_t szDestIpAddrBuffLen = kpstrDestIpAddr->length() + 1;
 		const size_t szSrcIpAddrBuffLen  = kpstrSrcIpAddr ->length() + 1;
-		char* pcDestIpAddr = new char[szDestIpAddrBuffLen];
+		char* pcDestIpAddr = new char[szDestIpAddrBuffLen]; // memo: std::unique_ptr 使えるのであればそちらの方が安全だと思います。下も。
 		char* pcSrcIpAddr  = new char[szSrcIpAddrBuffLen];
 		memcpy_s(pcDestIpAddr, szDestIpAddrBuffLen, kpstrDestIpAddr->c_str(), szDestIpAddrBuffLen);
 		memcpy_s(pcSrcIpAddr , szSrcIpAddrBuffLen , kpstrSrcIpAddr ->c_str(), szSrcIpAddrBuffLen);
 
 		bool iResult = ConnectDevice(pcDestIpAddr, kusDestPort, pcSrcIpAddr, kusSrcPort);
-		if (iResult) { bIsSuccess = true ; }
+		if (iResult) { bIsSuccess = true ; } // memo: delete してから if (!iResult) { return false; } を書いたら bIsSuccess 変数は不要
 		else         { bIsSuccess = false; }
 		// メモリを解放する。
 		delete[] pcDestIpAddr;
@@ -215,6 +236,7 @@ public:
 			StopCapture();
 		}
 
+		// memo: 画像バッファを開放する処理が他にもあるため、Allocate~ 関数に対する関数 ReleaseImageBuffer() を作成した方がいいと思います。指摘がおかしければ教えてください。
 		// 画像バッファを解放する。
 		if (m_pImageBuffer != nullptr) {
 			LOG_INPROGRESSF("9NVM| Releasing image buffer.");
@@ -231,6 +253,7 @@ public:
 		return true;
 	}
 
+	// memo: これは SDK の初期化？
 	/**
 	 * @brief  SDK の初期化を行う。
 	 * @return true: 成功, false: 失敗
@@ -250,6 +273,7 @@ public:
 		return m_bIsInitialized;
 	}
 
+	// memo: SDK とはツールキットではないですか？
 	/**
 	 * @brief   SDK のイベントコールバック関数を設定する。
 	 * @details イベントが起こった時、SDK が this ポインタを引数として UserHBICallback を呼び出す。
@@ -348,7 +372,7 @@ public:
 		// 取得フレーム数
 		SetCaptureFrame(krcaptureConfig.m_iCaptureFrame);
 
-		int iResult;
+		int iResult; // memo: コストが小さい iResult を使いまわす理由があれば教えてください。
 		{
 			// GainType
 			LOG_INPROGRESSF("oWAx| Setting GainType     to %d", krcaptureConfig.m_iGainType);
@@ -418,6 +442,8 @@ public:
 	 * @details     画像バッファは m_a4duiImageBuffer に確保される。バッファのサイズは m_iImageWidth * m_iImageHeight * iCaptureFrame。
 	 */
 	bool AllocateImageBuffer(const int kiCaptureFrame) {
+		// memo: 前回は”、”が and なのか or なのか分からなくてコメントしました。
+		// if () の中は改行で読みやすくなっていると思いますが、コメントからも上記が分かるように書いてくれると理解しやすいと思います。
 		// 未初期化、未接続、撮影中の場合はバッファを確保しない。
 		LOG_BEGINF0(7, "Hef4| HBIDeviceCtrl::AllocateImageBuffer()");
 		if (    !IsInitialized    ()  // 未初期化
@@ -473,6 +499,9 @@ public:
 		return true;
 	}
 
+	// memo: 以前書いた以下の指摘は、”LIVE_ACQ_DEFAULT_TYPE”と言われてもこの関数を使う人が理解できないという意味です。
+	// もし動画と静止画を撮影するモードがあるため「note LIVE_ACQ_DEFAULT_TYPE は HBIASDK のライブキャプチャモード」と書いていたのであれば、
+	// 「動画モードで動作する」くらいでいいと思います。今 details に書いてくれている詳細な情報が関数の利用者に必要な場合はこのままでいいと思います。
 	/**
 	 * @brief   画像取得を開始する。
 	 * @return  true: 取得の開始に成功, false: 取得の開始に失敗
@@ -533,16 +562,16 @@ private:
 	 * @return     true: 接続に成功, false: 接続に失敗
 	 * @details    Jumbo Packet を使用して接続する。 SDK の仕様で IP アドレスは char* 型で渡す必要がある。
 	 */
-	bool ConnectDevice(char* pcDestIpAddr, const unsigned short kusDestPort, char* pcSrcIpAddr, const unsigned short kusSrcPort) {
+	bool ConnectDevice(char* pcDestIpAddr, const unsigned short kusDestPORT, char* pcSrcIpAddr, const unsigned short kusSrcPort) {
 		LOG_BEGINF0(7, "MHyd| HBIDeviceCtrl::ConnectDevice()");
 		if (!IsInitialized()) { return false; }
-		int iResult = HBI_ConnectDetectorJumbo(m_hHBI, pcDestIpAddr, kusDestPort, pcSrcIpAddr, kusSrcPort, 0);
+		int iResult = HBI_ConnectDetectorJumbo(m_hHBI, pcDestIpAddr, kusDestPORT, pcSrcIpAddr, kusSrcPort, 0);
 		if (!IsSuccess(iResult)) {
 			return false;
 		}
 		LOG_INPROGRESSF("ybDD| Connected to the device successfully.");
 		return true;
-	}
+	} // memo: 改行
 	/**
 	 * @brief       HBI の関数の処理が成功したか否かを判定する。
 	 * @details     失敗した場合は、エラーコードをログに出力する。
@@ -571,6 +600,7 @@ private:
 	 */
 	bool IsInitialized() const { return m_bIsInitialized; }
 
+	// memo: 保存していないと思います。
 	/**
 	 * @brief     画像データをバッファに保存する。
 	 * @param[in] pImageData: 画像データのポインタ。
@@ -598,7 +628,7 @@ private:
 				pImageData,                                                   // コピー元のバッファの先頭アドレス
 				kiFramePixelCount * sizeof(uint16_t)                          // コピーするバイト数
 			);
-		}
+		} // memo: この改行は意図的？
 		catch (const std::exception& eError) {
 			LOG_INPROGRESSF("RLIT| Exception occurred while saving image data: %s", eError.what());
 			return false;
