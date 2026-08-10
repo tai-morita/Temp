@@ -7,16 +7,16 @@
 #include "../CSmartLog/SmartLog.h"
 
 struct CCaptureConfig {
-    int m_iGainType;          //!< ゲインモード: 1 から 11 までの整数値で表される
-	int m_imsExposureTime;    //!< 露光時間(ミリ秒)
-	int m_iCaptureFrame;      //!< 取得するフレーム数
-	int m_iBinningType;       //!< ビニングモード: 1 = 1x1, 2 = 2x2, 3 = 3x3, 4 = 4x4
-	int m_iOriginalWidth;     //!< 元画像の幅
-	int m_iOriginalHeight;    //!< 元画像の高さ
-	int m_iCaptureAreaLeft;   //!< 取得領域の左端座標
-	int m_iCaptureAreaTop;    //!< 取得領域の上端座標
-	int m_iCaptureAreaWidth;  //!< 取得領域の幅
-	int m_iCaptureAreaHeight; //!< 取得領域の高さ
+    int m_iGainType;          //!< ゲインモード:  1 から 11 までの整数値で表される
+    int m_imsExposureTime;    //!< 露光時間(ミリ秒)
+    int m_iCaptureFrame;      //!< 取得するフレーム数。
+    int m_iBinningType;       //!< ビニングモード: 1 = 1x1, 2 = 2x2, 3 = 3x3, 4 = 4x4
+    int m_iOriginalWidth;     //!< 元画像の幅
+    int m_iOriginalHeight;    //!< 元画像の高さ
+    int m_iCaptureAreaLeft;   //!< 取得領域の左端座標
+    int m_iCaptureAreaTop;    //!< 取得領域の上端座標
+    int m_iCaptureAreaWidth;  //!< 取得領域の幅
+    int m_iCaptureAreaHeight; //!< 取得領域の高さ
 
     /**
      * @brief JSON ファイル内の ProductCode を格納するベクトル。トップレベルの配列に格納されている。
@@ -37,10 +37,13 @@ struct CCaptureConfig {
         LOG_BEGINF0(7, "5s8E| CaptureConfig::CaptureConfig()");
         Clear();
         bool bIsLoadJsonFile      = LoadJsonFile(krwstrParamsJsonPath);
-        bool bIsFindCaptureConfig = FindCaptureConfig(krstrProductCode);
+        bool bIsFindCaptureConfig = ApplyCaptureConfig(krstrProductCode);
         if (bIsLoadJsonFile && bIsFindCaptureConfig) {
             // 成功した場合はログに出力する。
-            LOG_INPROGRESSF("l7qt| Loaded CaptureConfig for");
+            // memo: 「~の設定を読み込みました。（→パラメータを出力）」なら理解できるが、
+            // 「（全てのパラメータ）のコンフィグファイルを読みました」は書き方が適切なのか。
+            // 「読み込んだパラメータは～」では？
+            LOG_INPROGRESSF("l7qt| Applied CaptureConfig for");
             LOG_INPROGRESSF("steJ|    Product Code       : %s"   , krstrProductCode.c_str());
             LOG_INPROGRESSF("bI88|    Gain Type          : %d"   , m_iGainType);
             LOG_INPROGRESSF("PPPL|    Exposure Time      : %d ms", m_imsExposureTime);
@@ -88,7 +91,7 @@ struct CCaptureConfig {
         std::size_t szObjectStart = std::string::npos;
         int iArrayDepth                      = 0;     // トップレベルの配列の深さを追跡するための変数。
         int iObjectDepth                     = 0;     // オブジェクトの深さを追跡するための変数。
-        bool bIsString                       = false; // 文字列の中にいるかどうかを追跡するための変数。
+        bool bIsInString                     = false; // 文字列の中にいるかどうかを追跡するための変数。 // memo: bIsInStringでは
         bool bIsEscaped                      = false; // 文字列内でエスケープされているかどうかを追跡するための変数。
         bool bIsPushBackString               = false; // 文字列をベクトルに追加するかどうかを追跡するための変数。
         std::string strCurrentTopLevelString = "";    // トップレベルの配列内の文字列(ProductCode)をキャプチャするための変数。
@@ -111,7 +114,7 @@ struct CCaptureConfig {
             const char kcCurrentJsonChar = strParamsJsonText[iIndex];
 
             // 現在は文字列なので、文字列の終わりにある["]を探す。
-            if (bIsString) {
+            if (bIsInString) {
                 // 直前がエスケープ(\)なら、この文字はそのまま文字列に取り込む。
                 if (bIsEscaped) {
                     if (bIsPushBackString) {
@@ -127,7 +130,7 @@ struct CCaptureConfig {
                 }
                 // エスケープされていない["]が来た時は文字列の終了を意味する。
                 if (kcCurrentJsonChar == '"') {
-                    bIsString = false;
+                    bIsInString = false;
                     if (bIsPushBackString) {
                         // 文字列をベクトルに追加して、次の文字列をキャプチャするためにクリアする。
                         m_vecstrProductCodes.emplace_back(strCurrentTopLevelString);
@@ -145,7 +148,7 @@ struct CCaptureConfig {
 
             // エスケープされていない["]が来た時は文字列の開始を意味する。
             if (kcCurrentJsonChar == '"') {
-                bIsString  = true;
+                bIsInString  = true;
                 bIsEscaped = false;
                 // トップレベルの配列の深さが1で、オブジェクトの深さが0のときに文字列をキャプチャするための状態を更新する。
                 if (iArrayDepth == 1 && iObjectDepth == 0) {
@@ -208,18 +211,24 @@ struct CCaptureConfig {
         return true;
     }
 
+    // memo: 「krstrProductCode と krstrProductCode が一致するオブジェクト」の意味が分からない。
+    // 返り値は成功・失敗ではない？
     /**
-     * @brief     指定されたProductCodeに対応するオブジェクトのテキストを取得する。
-     * @param[in] krstrProductCode ProductCode
-	 * @details   krstrProductCode と krstrProductCode が一致するオブジェクトを探し、krstrObjectText をメンバ変数に格納する。
-	 * @return    true: Product Code が見つかった。 false: 見つからなかった。
+     * @brief     指定された ProductCode に対応するオブジェクトのテキストを取得し、メンバ変数に格納する。 // memo: スペースがない
+     * @param[in] rstrTargetProductCode ProductCode
+	 * @details   m_vecstrProductCodes と m_vecstrObjectTexts を走査し、 krstrTargetProductCode と一致する ProductCode を探す
+     *            1. 一致する ProductCode が見つかった場合は、そのインデックスのオブジェクトのテキストを取得し、メンバ変数に格納する
+     *            2. 一致する ProductCode が見つからなかった場合は、空の ProductCode のオブジェクトのテキストを取得し、メンバ変数に格納する
+	 * @return    true: メンバ変数への格納に成功, false: 失敗
      */
-    bool FindCaptureConfig(const std::string& rstrTargetProductCode) {
-        LOG_BEGINF0(7, "Dgw4| CaptureConfig::FindCaptureConfig()");
-        nlohmann::json objCaptureParams;
-        bool bIsMatchedProductCode = false;
-        bool bIsEmptyProductCode   = false;
+    bool ApplyCaptureConfig(const std::string& krstrTargetProductCode) {
+        LOG_BEGINF0(7, "Dgw4| CaptureConfig::ApplyCaptureConfig()");
+        // memo: ↓の変数は最初のチェック後に宣言した方がよいのでは？
+        nlohmann::json objCaptureParams; // memo: objCaptureParamsは"obj"なので統一した方が理解しやすい
+        bool bIsMatchedProductCode = false; // memo: bIsProductCodeMatched?(自信ないです)
+        bool bIsEmptyProductCode   = false; // memo: bIsProductCodeEmpty?
 
+        // memo: vec~s のsは冗長では？どこかで指摘していたと思うので、他もチェックしてください。
         // ProductCode とオブジェクトのテキストが空の場合は、ログに出力して false を返す。
         if (m_vecstrProductCodes.empty() || m_vecstrObjectTexts.empty()) {
             LOG_INPROGRESSF("kZQH| No ProductCodes or ObjectTexts found in JSON.");
@@ -234,19 +243,21 @@ struct CCaptureConfig {
             nlohmann::json objectText;
             InputStream >> objectText;
 
-            // JSONのパースに失敗した場合は、ログに出力して次のループに進む。
+            // JSONの読み取りに失敗した場合は、ログに出力して次のループに進む。
             if (InputStream.fail()) {
                 LOG_INPROGRESSF("mI9d| JSON parse error at index %d", iIndex);
                 continue;
             }
 
-            if (krstrProductCode == rstrTargetProductCode) {
+            // ProductCode が一致した場合は、ログに出力して objCaptureParams に格納し、ループを抜ける。
+            if (krstrProductCode == krstrTargetProductCode) {
                 LOG_INPROGRESSF("SuUN| Found ProductCode: %s at index %d", krstrProductCode.c_str(), iIndex);
                 objCaptureParams = objectText;
                 bIsMatchedProductCode = true;
                 break;
             }
 
+            // memo: 関数のコメントでこれが分からないので、関数自体のコメントにも書いた方がいいと思います。
             // ProductCode が空の設定をフォールバックとして保持する。
             if (!bIsEmptyProductCode && krstrProductCode.empty()) {
                 objCaptureParams = objectText;
@@ -254,12 +265,15 @@ struct CCaptureConfig {
             }
         }
 
-        // ProductCode が一致しなかった場合、かつ空のProductCodeが見つからなかった場合は、ログに出力して false を返す。
-        if (!bIsMatchedProductCode && !bIsEmptyProductCode) {
-            LOG_INPROGRESSF("dBqE| No matching ProductCode in JSON. ProductCode=%s", rstrTargetProductCode.c_str());
+		// memo: config file に krstrTargetProductCode が存在しない場合～
+        // !(bIsMatchedProductCode || bIsEmptyProductCode)
+        // krstrTargetProductCode に一致する ProductCode が見つからなかった場合、かつ空の設定が見つからなかった場合は、ログに出力して false を返す。
+        if (!(bIsMatchedProductCode || bIsEmptyProductCode)) {
+            LOG_INPROGRESSF("dBqE| No matching ProductCode in JSON. ProductCode=%s", krstrTargetProductCode.c_str());
             return false;
         }
 
+        // objCaptureParams に格納された設定をメンバ変数に格納する。
         m_iGainType          = objCaptureParams.value("GainType"         , 0);
         m_imsExposureTime    = objCaptureParams.value("msExposureTime"   , 0);
         m_iCaptureFrame      = objCaptureParams.value("CaptureFrame"     , 0);
@@ -270,7 +284,7 @@ struct CCaptureConfig {
         m_iCaptureAreaTop    = objCaptureParams.value("CaptureAreaTop"   , 0);
         m_iCaptureAreaWidth  = objCaptureParams.value("CaptureAreaWidth" , 0);
         m_iCaptureAreaHeight = objCaptureParams.value("CaptureAreaHeight", 0);
-
+        
         return true;
     }
 };
