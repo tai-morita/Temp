@@ -1,4 +1,4 @@
-// CpturerByHBI_rev2.cpp : このファイルには 'main' 関数が含まれています。プログラム実行の開始と終了がそこで行われます。
+﻿// CpturerByHBI_rev2.cpp : このファイルには 'main' 関数が含まれています。プログラム実行の開始と終了がそこで行われます。
 //
 
 #include <thread>
@@ -22,13 +22,15 @@ CWinApp theApp;
 
 using namespace std;
 
+// memo: param の一つ目が誤り。
+// details の内容はこの関数の説明ではなさそう。←格納しているのはこの関数ではないため。paramに記載するかnoteの方が適切？
 /**
- * @brief  画像を保存する関数
- * @details 4 次元配列は(X, Y, Z, T) で格納されており、フレームは T 軸で指定されている。
- * @param  a2dusImage 保存する画像データの2次元配列
- * @param  iSaveFrame 保存するフレーム数
- * @param  krwstrSaveFilePath 保存先のファイルパス
- * @return 成功: true, 失敗: false
+ * @brief   画像を保存する関数
+ * @param   ka4duiImage 保存する画像データの 4 次元配列 (フレーム番号は T 軸で指定される)
+ * @param   kiImageWidth 画像の幅
+ * @param   kiImageHeight 画像の高さ
+ * @param   krwstrSaveFilePath 保存先のファイルパス
+ * @return  成功: true, 失敗: false
  */
 bool SaveImage(const CArray4D<uint16_t> ka4duiImage, const int kiImageWidth, const int kiImageHeight, const wstring& krwstrSaveFilePath) {
     LOG_BEGINF0(7, "HzZX| SaveImage()");
@@ -59,6 +61,8 @@ bool SaveImage(const CArray4D<uint16_t> ka4duiImage, const int kiImageWidth, con
     return true;
 }
 
+// memo: クラス名と関数名を同じにしない方がよいと思う。準備・キャプチャ・切断とかに分けた方がいいと思う。1つにまとめたいんだった他の名前を検討すべき。
+// TODO: クラス名と関数名が同じ場所はどこ？
 /**
 * @brief  HBI SDK を使用して、デバイスの接続、切断、画像取得などの操作を行う関数
 * @details CapturerByHBI 開発の練習として、 SDK を使用して画像取得できる関数を作成した。
@@ -67,7 +71,7 @@ bool SaveImage(const CArray4D<uint16_t> ka4duiImage, const int kiImageWidth, con
 bool CapturerByHBIDlg() {
     LOG_BEGINF0(7, "3HGr| MAIN: CapturerByHBIDlg()");
     const wstring kwstrPARAMSJSONPATH    = LR"(D:\_2026\CapturerByHBI\CapturerByHBI_rev2\DeviceParams.json)";              // パラメータを読む JSON ファイル
-    const wstring kwstrSAVEFILEPATH      = LR"(D:\_2026\CapturerByHBI\CapturerByHBI_rev2\CaptureData\CapturedImage.tif)";  // 保存する画像ファイルのパス
+    const wstring kwstrSaveFilePath      = LR"(D:\_2026\CapturerByHBI\CapturerByHBI_rev2\CaptureData\CapturedImage.tif)";  // 保存する画像ファイルのパス
     const std::string kstrDestIpAddr     = "192.168.10.40"; // FPD の IP アドレス
     const std::string kstrSrcIpAddr      = "192.168.10.20"; // PC の IP アドレス
     constexpr unsigned short kusDestPort = 32897;           // FPD のポート番号
@@ -86,20 +90,18 @@ bool CapturerByHBIDlg() {
         return false;
     }
 
+    // memo: ここで return したら後ろのリトライは意味無い。
+    // -> デバッグで使用していたものが残っていました。すみません。
     // Device の接続
     if (!hbiDeviceCtrl.ConnectDevice(&kstrDestIpAddr, kusDestPort, &kstrSrcIpAddr, kusSrcPort)) {
         return false;
     }
 
-	// デバイスが接続されるまで、最大 5 回までリトライする。
-    // 2回 ConnectDevice を呼び出すのは冗長?
-    int iRetryCount = 0;
-	while (iRetryCount++ < 5 && !hbiDeviceCtrl.IsDeviceConnected()) {
-		LOG_INPROGRESSF("Device is not connected. Retrying... iRetryCount = %d", iRetryCount);
-		hbiDeviceCtrl.ConnectDevice(&kstrDestIpAddr, kusDestPort, &kstrSrcIpAddr, kusSrcPort);
-		std::this_thread::sleep_for(std::chrono::milliseconds(500));
-	}
+    // memo: 下でバージョン等を取得しているが出力していない？
+    // 取得できるか試す目的？製品コードとシリアル番号は残しておいた方が後で役立つと思う。
+    // -> SDK バージョン、シリアル番号、製品コードをログに出力するようしました。
 
+    /*
     // HBI SDK のバージョンを取得する。
     const std::string kstrSDKVersion = hbiDeviceCtrl.GetSDKVersion();
     if (kstrSDKVersion.empty()) {
@@ -119,9 +121,23 @@ bool CapturerByHBIDlg() {
         LOG_INPROGRESSF("uBK0| Failed to get FPD Product Code.");
         return false;
     }
+    */
+
+    // HBI API のバージョンをログに出力する。
+    if (!hbiDeviceCtrl.RecordAPIVersion()) {
+        LOG_INPROGRESSF("Failed to record HBI API version.");
+        return false;
+    }
+
+    // デバイスの情報を取得してログに出力する。
+    if (!hbiDeviceCtrl.LoadDeviceInfo()) {
+        LOG_INPROGRESSF("Failed to load device info.");
+        return false;
+    }
 
     // ProductCode をもとに、 JSON ファイルから撮影パラメータを読み込む。
     // JSON ファイルの内容は、 CaptureConfig クラスのコンストラクタで読み取り、撮影パラメータが設定される。
+    const std::string kstrProductCode = hbiDeviceCtrl.GetFPDProductCode();
     CCaptureConfig captureConfig(kwstrPARAMSJSONPATH, kstrProductCode);
 
     // 撮影枚数が 0 の場合はエラーとして終了する。
@@ -132,6 +148,7 @@ bool CapturerByHBIDlg() {
 
     if (kstrProductCode == ("X-Panel3030zFDM") && (captureConfig.m_iCaptureAreaHeight % 2 != 0)) {
         // 3030z の場合は、デュアル読出しのため、中央から等間隔にオフセットする。そのため高さ方向のサイズは偶数である必要がある
+        // memo: ログに Failed とか Error とか書かなくてもいい？
         LOG_INPROGRESSF("6Ysy| Zoom height must be a multiple of 2 for Product Code: %s. Adjusting to nearest even number.", kstrProductCode.c_str());
         return false;
     }
@@ -165,33 +182,46 @@ bool CapturerByHBIDlg() {
 
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
-    // キャプチャ開始
-    if (!hbiDeviceCtrl.StartCapture()) {
-		LOG_INPROGRESSF("Failed to start capture");
-        return false;       
+    {
+        // キャプチャ処理
+        // キャプチャ開始
+        if (!hbiDeviceCtrl.StartCapture()) {
+            LOG_INPROGRESSF("Failed to start capture");
+            return false;
+            // memo: false; の後ろに謎のスペース
+        }
+
+        // 50 ms ごとにキャプチャが終了したか確認する。
+        // memo: 本当は別スレッドでタイムアウトを設けたほうがいいと思いますが、異常終了の処理同様未実装です。
+        while (!hbiDeviceCtrl.GetIsCaptureFinished()) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        }
+
+        // memo: キャプチャ中じゃなかったらすでに StopCapture() されているのでは？単純な疑問
+        // -> キャプチャ中かどうかのフラグを確認して、キャプチャ中であれば StopCapture() を呼び出すようにしました。
+        // キャプチャ中であれば停止する。
+        if (hbiDeviceCtrl.GetIsCapturing()) {
+            if (!hbiDeviceCtrl.StopCapture()) {
+                LOG_INPROGRESSF("Failed to stop capture");
+                return false;
+            }
+        }
+
+        // memo: "出ない"←誤字
+        // キャプチャ枚数が指定枚数でない場合はエラーとして終了する。
+        // memo: 異常終了時の処理は未実装。Capturer開発の時にDCAMを参考に実装します。
+        //       → OKです。
+        if (hbiDeviceCtrl.GetCapturedFrameCount() != captureConfig.m_iCaptureFrame) {
+            // memo: このログも Error とか Failed とか書いた方がよさそう。Error: ~ みたいな風に書いてます。正解かわからないので3dxdの他のコード参考にしてみてください。
+            // -> 基本 Error で書いていたので、ログに Error と書くようにしました。
+            LOG_INPROGRESSF("Error: Captured frame count (%d) does not match expected frame count (%d)", hbiDeviceCtrl.GetCapturedFrameCount(), captureConfig.m_iCaptureFrame);
+        }
     }
-
-    // 50 ms ごとにキャプチャ中かどうかを確認する。
-    while (hbiDeviceCtrl.IsCapturing()) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(50));
-    }
-
-    // キャプチャ終了
-	if (!hbiDeviceCtrl.StopCapture()) {
-		LOG_INPROGRESSF("Failed to stop capture");
-		return false;
-	}
-
-	// キャプチャ枚数が指定枚数出ない場合はエラーとして終了する。
-    // memo: 異常終了時の処理は未実装。Capturer開発の時にDCAMを参考に実装します。
-	if (hbiDeviceCtrl.GetCapturedFrameCount() != captureConfig.m_iCaptureFrame) {
-		LOG_INPROGRESSF("Captured frame count (%d) does not match expected frame count (%d)", hbiDeviceCtrl.GetCapturedFrameCount(), captureConfig.m_iCaptureFrame);
-		return false;
-	}
 
     // デバイスの接続を切断する。
     hbiDeviceCtrl.DisconnectDevice();
 
+    // memo: 異常終了時の処理は未実装とのことだったので余計かもしれませんが、途中で撮影終わってもSaveしておいてよさそう。
     // 画像を保存する。
     const int kiImageHeight = hbiDeviceCtrl.GetImageHeight();
     const int kiImageWidth  = hbiDeviceCtrl.GetImageWidth();
