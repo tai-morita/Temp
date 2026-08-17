@@ -194,19 +194,15 @@ struct CCaptureConfig {
                 }
             }
         }
-        // ProductCode とオブジェクトのテキストの数は一致しているはず。
+        // ProductCode とオブジェクトのテキストの数が一致してない場合は、ログに出力して false を返す。
         if (m_vecstrProductCodes.size() != m_vecstrObjectTexts.size()) {
             LOG_INPROGRESSF("pC5R| Mismatch between ProductCodes and ObjectTexts: %zu and %zu", m_vecstrProductCodes.size(), m_vecstrObjectTexts.size());
             return false;
         }
         // 読み込んだオブジェクトをログに出力する。
         for (int iIndex = 0; iIndex < static_cast<int>(m_vecstrProductCodes.size()); ++iIndex) {
-            LOG_INPROGRESSF("WjD6| m_vecstrProductCodes[%d] = %s",
-                static_cast<int>(iIndex),
-                m_vecstrProductCodes[iIndex].c_str());
-            LOG_INPROGRESSF("jsHs| m_vecstrObjectTexts[%d] = %s",
-                static_cast<int>(iIndex),
-                m_vecstrObjectTexts[iIndex].c_str());
+            LOG_INPROGRESSF("WjD6| m_vecstrProductCodes[%d] = %s", static_cast<int>(iIndex), m_vecstrProductCodes[iIndex].c_str());
+            LOG_INPROGRESSF("jsHs| m_vecstrObjectTexts [%d] = %s", static_cast<int>(iIndex), m_vecstrObjectTexts[iIndex].c_str());
         }
         return true;
     }
@@ -215,7 +211,7 @@ struct CCaptureConfig {
     // 返り値は成功・失敗ではない？
     /**
      * @brief     指定された ProductCode に対応するオブジェクトのテキストを取得し、メンバ変数に格納する。 // memo: スペースがない
-     * @param[in] rstrTargetProductCode ProductCode
+     * @param[in] krstrTargetProductCode ProductCode
 	 * @details   m_vecstrProductCodes と m_vecstrObjectTexts を走査し、 krstrTargetProductCode と一致する ProductCode を探す
      *            1. 一致する ProductCode が見つかった場合は、そのインデックスのオブジェクトのテキストを取得し、メンバ変数に格納する
      *            2. 一致する ProductCode が見つからなかった場合は、空の ProductCode のオブジェクトのテキストを取得し、メンバ変数に格納する
@@ -223,10 +219,6 @@ struct CCaptureConfig {
      */
     bool ApplyCaptureConfig(const std::string& krstrTargetProductCode) {
         LOG_BEGINF0(7, "Dgw4| CaptureConfig::ApplyCaptureConfig()");
-        // memo: ↓の変数は最初のチェック後に宣言した方がよいのでは？
-        nlohmann::json objCaptureParams; // memo: objCaptureParamsは"obj"なので統一した方が理解しやすい
-        bool bIsMatchedProductCode = false; // memo: bIsProductCodeMatched?(自信ないです)
-        bool bIsEmptyProductCode   = false; // memo: bIsProductCodeEmpty?
 
         // memo: vec~s のsは冗長では？どこかで指摘していたと思うので、他もチェックしてください。
         // ProductCode とオブジェクトのテキストが空の場合は、ログに出力して false を返す。
@@ -234,6 +226,12 @@ struct CCaptureConfig {
             LOG_INPROGRESSF("kZQH| No ProductCodes or ObjectTexts found in JSON.");
             return false;
         }
+
+        // memo: ↓の変数は最初のチェック後に宣言した方がよいのでは？
+        nlohmann::json objCaptureParams; // memo: objCaptureParamsは"obj"なので統一した方が理解しやすい
+        bool bIsProductCodeMatched = false; // memo: bIsProductCodeMatched?(自信ないです)
+        bool bIsProductCodeEmpty   = false; // memo: bIsProductCodeEmpty?
+
 
         for (int iIndex = 0; iIndex < static_cast<int>(m_vecstrProductCodes.size()); ++iIndex) {
             const std::string& krstrProductCode = m_vecstrProductCodes[iIndex];
@@ -253,22 +251,22 @@ struct CCaptureConfig {
             if (krstrProductCode == krstrTargetProductCode) {
                 LOG_INPROGRESSF("SuUN| Found ProductCode: %s at index %d", krstrProductCode.c_str(), iIndex);
                 objCaptureParams = objectText;
-                bIsMatchedProductCode = true;
+                bIsProductCodeMatched = true;
                 break;
             }
 
             // memo: 関数のコメントでこれが分からないので、関数自体のコメントにも書いた方がいいと思います。
             // ProductCode が空の設定をフォールバックとして保持する。
-            if (!bIsEmptyProductCode && krstrProductCode.empty()) {
+            if (!bIsProductCodeEmpty && krstrProductCode.empty()) {
                 objCaptureParams = objectText;
-                bIsEmptyProductCode = true;
+                bIsProductCodeEmpty = true;
             }
         }
 
 		// memo: config file に krstrTargetProductCode が存在しない場合～
-        // !(bIsMatchedProductCode || bIsEmptyProductCode)
+        // !(bIsProductCodeMatched || bIsProductCodeEmpty)
         // krstrTargetProductCode に一致する ProductCode が見つからなかった場合、かつ空の設定が見つからなかった場合は、ログに出力して false を返す。
-        if (!(bIsMatchedProductCode || bIsEmptyProductCode)) {
+        if (!(bIsProductCodeMatched || bIsProductCodeEmpty)) {
             LOG_INPROGRESSF("dBqE| No matching ProductCode in JSON. ProductCode=%s", krstrTargetProductCode.c_str());
             return false;
         }
