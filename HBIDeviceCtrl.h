@@ -36,18 +36,19 @@ class CHBIDeviceCtrl
 {
 private:
 
-	void*                    m_hHBI;              //!< HBISDK のハンドル。これで SDK の関数を呼び出す
-	bool                     m_bIsInitialized;    //!< 初期化されているか示すフラグ
-	bool                     m_bIsCapturing;      //!< 画像取得中かどうかを示すフラグ
-	uint16_t*                m_pImageBuffer;      //!< 画像バッファの先頭アドレスを指すポインタ
-	size_t                   m_szImageBufferSize; //!< 画像バッファのサイズ
-	int                      m_iFrameCounter;     //!< 取得したフレーム数をカウントする
-	int                      m_iCaptureFrame;     //!< 取得するフレームの総数
-	int                      m_iImageWidth;       //!< 取得する画像サイズ(幅)
-	int                      m_iImageHeight;      //!< 取得する画像サイズ(高さ)
-	CArray2D<unsigned short> m_a2dusImage;        //!< 1 フレーム分の画像データを保存する 2 次元配列
-	CArray4D<uint16_t>       m_a4duiImageBuffer;  //!< 取得した画像データを保存する 4 次元配列
-	std::string m_strProductCode;                 //!< デバイスの製品コード
+	void*                    m_hHBI;               //!< HBISDK のハンドル。これで SDK の関数を呼び出す
+	bool                     m_bIsInitialized;     //!< 初期化されているか示すフラグ
+	bool                     m_bIsCapturing;       //!< 画像取得中かどうかを示すフラグ
+	bool 				     m_bIsCaptureFinished; //!< 画像取得が完了したかどうかを示すフラグ
+	uint16_t*                m_pImageBuffer;       //!< 画像バッファの先頭アドレスを指すポインタ
+	size_t                   m_szImageBufferSize;  //!< 画像バッファのサイズ
+	int                      m_iFrameCounter;      //!< 取得したフレーム数をカウントする
+	int                      m_iCaptureFrame;      //!< 取得するフレームの総数
+	int                      m_iImageWidth;        //!< 取得する画像サイズ(幅)
+	int                      m_iImageHeight;       //!< 取得する画像サイズ(高さ)
+	CArray2D<unsigned short> m_a2dusImage;         //!< 1 フレーム分の画像データを保存する 2 次元配列
+	CArray4D<uint16_t>       m_a4duiImageBuffer;   //!< 取得した画像データを保存する 4 次元配列
+	std::string m_strProductCode;                  //!< デバイスの製品コード
 
 public:
 	// memo: doxygen コメントじゃない
@@ -120,6 +121,16 @@ public:
 	const int GetCapturedFrameCount() const { return m_iFrameCounter; }
 
 	/**
+	 * @brief  画像取得中か判断する。
+	 */
+	bool GetIsCapturing() const { return m_bIsCapturing; }
+	
+	/**
+	 * @brief  画像取得が終了したか判断する。
+	 */
+	bool GetIsCaptureFinished() const { return m_bIsCaptureFinished; }
+
+	/**
 	 * @brief   デバイスのシリアル番号を取得する。
 	 * @details シリアル番号は 14 bytes で取得される。
 	 * @return  取得に成功した場合はシリアル番号の文字列、失敗した場合は空文字列。
@@ -180,7 +191,30 @@ public:
 		return std::string(cSDKVersion);
 	}
 
-public:
+	/**
+	 * @brief   HBI API のバージョンをログに出力する。
+	 * @return  true: 取得に成功, false: 取得に失敗
+	*/
+	bool RecordAPIVersion() {
+		LOG_BEGINF0(7, "HBIDeviceCtrl::RecordAPIVersion()");
+		if (!m_bIsInitialized) { return false; }
+		// HBIAPI のバージョンを取得する。
+		LOG_INPROGRESSF("HBI API Version: %s", GetSDKVersion().c_str());
+		return true;
+	}
+
+	/**
+	 * @brief   デバイスの情報を取得してログに出力する。
+	 * @return  true: 取得に成功, false: 取得に失敗
+	 */
+	bool LoadDeviceInfo() {
+		LOG_BEGINF0(7, "HBIDeviceCtrl::LoadDeviceInfo()");
+		if (!m_bIsInitialized) { return false; }
+		LOG_INPROGRESSF(" ProductName : %s", GetFPDProductCode());
+		LOG_INPROGRESSF(" SerialNumber: %s", GetFPDSerialNumber());
+		return true;
+	}
+
 	/**
 	 * @brief       デバイスに接続する。関数を実行する。
 	 * @details     IPアドレスを char* 型に変換して、ConnectDevice(char*, unsigned short, char*, unsigned short) を呼び出す。
@@ -539,10 +573,6 @@ public:
 		return true;
 	}
 
-	/**
-	 * @brief  画像取得中か判断する。
-	 */
-	bool IsCapturing() const { return m_bIsCapturing; }
 
 private:
 	/**
@@ -624,7 +654,7 @@ private:
 		if (m_iFrameCounter >= m_iCaptureFrame) {
 			// 指定枚数撮影したので保存はしない。
 			LOG_INPROGRESSF("7wM9| Frame counter %d reached capture frame %d. Stopping capture.", m_iFrameCounter, m_iCaptureFrame);
-			m_bIsCapturing = false;
+			m_bIsFinishedCapture = true;
 			return false;
 		}
 
