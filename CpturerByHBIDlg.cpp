@@ -131,14 +131,14 @@ bool CapturerByHBIDlg() {
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
     // HBI API のバージョンをログに出力する。
-    if (!hbiDeviceCtrl.RecordAPIVersion()) {
-        LOG_INPROGRESSF("E31p| Failed to record HBI API version.");
+    if (!hbiDeviceCtrl.PrintAPIVersion()) {
+        LOG_INPROGRESSF("E31p| Failed to print HBI API version.");
         return false;
     }
 
     // デバイスの情報を取得してログに出力する。
-    if (!hbiDeviceCtrl.LoadDeviceInfo()) {
-        LOG_INPROGRESSF("So8s| Failed to load device info.");
+    if (!hbiDeviceCtrl.PrintDeviceInfo()) {
+        LOG_INPROGRESSF("So8s| Failed to print device info.");
         return false;
     }
 

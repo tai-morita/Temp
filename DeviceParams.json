@@ -16,9 +16,9 @@
   "3000048807",
   {
     "GainType": 2,
-    "msExposureTime": 1000,
+    "msExposureTime": 33,
     "CaptureFrame": 20,
-    "BinningType": 1,
+    "BinningType": 3,
     "OriginalWidth": 2560,
     "OriginalHeight": 2048,
     "CaptureAreaLeft": 0,

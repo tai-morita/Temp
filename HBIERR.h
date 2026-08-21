@@ -1,5 +1,5 @@
 /**
-* @file  HBIERRStr.h
+* @file  HBIERR.h
 * @brief HBI のエラーコードをエラーメッセージに変換するクラス
 */
 #pragma once
@@ -73,5 +73,7 @@ private:
 		if (hbierr == HBI_ERR_FILE_TYPE)             { return "File type exception"                     ;}
 		if (hbierr == HBI_ERR_PCIE_DEVICE_USED)      { return "PCIE device has been used"               ;}
 		if (hbierr == HBI_END)                       { return "Exit monitoring"                         ;}
+
+		else                                         { return "Unknown error"                           ;}
 	}
 };
