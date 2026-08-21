@@ -36,14 +36,18 @@ struct CCaptureConfig {
     {
         LOG_BEGINF0(7, "5s8E| CaptureConfig::CaptureConfig()");
         Clear();
-        bool bIsLoadJsonFile      = LoadJsonFile(krwstrParamsJsonPath);
-        bool bIsFindCaptureConfig = ApplyCaptureConfig(krstrProductCode);
-        if (bIsLoadJsonFile && bIsFindCaptureConfig) {
+        // JSON ファイルを読み込み、文字列形式に変換する。
+        std::string strJsonText            = ReadJsonFile(krwstrParamsJsonPath);
+        // JSON ファイルの内容を解析し、 ProductCode ごとに設定をベクトルに格納する。
+        const bool bIsExtractCaptureConfig = ExtractCaptureConfigFromJsonText(strJsonText);
+        // 指定された ProductCode に対応する設定をメンバ変数に格納する。
+        bool bIsFindCaptureConfig          = ApplyCaptureConfig(krstrProductCode);
+        if (!strJsonText.empty() && bIsExtractCaptureConfig && bIsFindCaptureConfig) {
             // 成功した場合はログに出力する。
             // memo: 「~の設定を読み込みました。（→パラメータを出力）」なら理解できるが、
             // 「（全てのパラメータ）のコンフィグファイルを読みました」は書き方が適切なのか。
             // 「読み込んだパラメータは～」では？
-            LOG_INPROGRESSF("l7qt| Applied CaptureConfig for");
+            LOG_INPROGRESSF("l7qt| Applied CaptureConfig for Product Code: %s", krstrProductCode.c_str());
             LOG_INPROGRESSF("steJ|    Product Code       : %s"   , krstrProductCode.c_str());
             LOG_INPROGRESSF("bI88|    Gain Type          : %d"   , m_iGainType);
             LOG_INPROGRESSF("PPPL|    Exposure Time      : %d ms", m_imsExposureTime);
@@ -79,15 +83,37 @@ struct CCaptureConfig {
     }
 
     /**
-     * @brief     JSON ファイルを読み込む。
+     * @brief     JSON ファイルを読み込み、 string 形式に変換する。
      * @param[in] krwstrParamsJsonPath JSONファイルのパス。
-     * @return    true: 読み込みに成功, false: 読み込みに失敗
-     * @details   JSONファイルを文字列形式で読み込み、トップレベルの配列に存在するProductCodeとオブジェクトのテキストをそれぞれのベクトルに格納する。
-     *            1 文字ずつ解析して、エスケープ文字で開始と終了を判断する。
+     * @return    読み取った JSON ファイルの内容を文字列として返す。読み込みに失敗した場合は空文字列を返す。
      */
-    bool LoadJsonFile(const std::wstring& krwstrParamsJsonPath) {
-        LOG_BEGINF0(7, "8lp9| CaptureConfig::LoadJsonFile()");
+    std::string ReadJsonFile(const std::wstring& krwstrParamsJsonPath) {
+        LOG_BEGINF0(7, "8lp9| CaptureConfig::ReadJsonFile()");
         std::string strParamsJsonText;
+        try {
+            std::ifstream ifs(krwstrParamsJsonPath);
+            if (!ifs.is_open()) {
+                LOG_INPROGRESSF("xH6U| Failed to open: %s", std::string(krwstrParamsJsonPath.begin(), krwstrParamsJsonPath.end()).c_str());
+                return "";
+            }
+            // JSONファイルの内容を文字列として読み込む
+            strParamsJsonText.assign((std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
+        } catch (const std::exception& eError) {
+            LOG_INPROGRESSF("SbeY| Exception occurred while opening JSON file: %s", eError.what());
+            return "";
+        }
+        return strParamsJsonText;
+    }
+
+    /**
+     * @brief   JSON ファイル形式の文字列を解析し、トップレベルの配列に存在する ProductCode とオブジェクトのテキストをそれぞれのベクトルに格納する。
+     * @return  true : ProductCode とオブジェクト文字列の数が一致した。
+     *          false: ProductCode とオブジェクト文字列の数が一致しなかった。
+     * @details JSONファイルを文字列形式で解析し、トップレベルの配列に存在する ProductCode とオブジェクトのテキストをそれぞれのベクトルに格納する。
+     *          1 文字ずつ解析して、エスケープ文字で開始と終了を判断する。
+     */
+    bool ExtractCaptureConfigFromJsonText(const std::string& strParamsJsonText) {
+        LOG_BEGINF0(7, "cLiC| CaptureConfig::ExtractCaptureConfigFromJsonText()");
         std::size_t szObjectStart = std::string::npos;
         int iArrayDepth                      = 0;     // トップレベルの配列の深さを追跡するための変数。
         int iObjectDepth                     = 0;     // オブジェクトの深さを追跡するための変数。
@@ -95,20 +121,7 @@ struct CCaptureConfig {
         bool bIsEscaped                      = false; // 文字列内でエスケープされているかどうかを追跡するための変数。
         bool bIsPushBackString               = false; // 文字列をベクトルに追加するかどうかを追跡するための変数。
         std::string strCurrentTopLevelString = "";    // トップレベルの配列内の文字列(ProductCode)をキャプチャするための変数。
-
-        try {
-            std::ifstream ifs(krwstrParamsJsonPath);
-            if (!ifs.is_open()) {
-                LOG_INPROGRESSF("xH6U| Failed to open: %s", std::string(krwstrParamsJsonPath.begin(), krwstrParamsJsonPath.end()).c_str());
-                return false;
-            }
-            // JSONファイルの内容を文字列として読み込む
-            strParamsJsonText.assign((std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
-        } catch (const std::exception& eError) {
-            LOG_INPROGRESSF("SbeY| Exception occurred while opening JSON file: %s", eError.what());
-            return false;
-        }
-
+    
         for (int iIndex = 0; iIndex < strParamsJsonText.size(); ++iIndex) {
             // １文字ずつ抽出して、文字列を抜き取る。
             const char kcCurrentJsonChar = strParamsJsonText[iIndex];
