@@ -26,9 +26,9 @@ using namespace std;
 // details の内容はこの関数の説明ではなさそう。←格納しているのはこの関数ではないため。paramに記載するかnoteの方が適切？
 /**
  * @brief   画像を保存する関数
- * @param   ka4duiImage 保存する画像データの 4 次元配列 (フレーム番号は T 軸で指定される。 Z 軸は 0 で固定される。)
- * @param   kiImageWidth  画像の幅
- * @param   kiImageHeight 画像の高さ
+ * @param   ka4duiImage        保存する画像データの 4 次元配列 (フレーム番号は T 軸で指定される。 Z 軸は 0 で固定される。)
+ * @param   kiImageWidth       画像の幅
+ * @param   kiImageHeight      画像の高さ
  * @param   krwstrSaveFilePath 保存先のファイルパス
  * @return  成功: true, 失敗: false
  */
@@ -61,7 +61,6 @@ bool SaveImage(const CArray4D<uint16_t> ka4duiImage, const int kiImageWidth, con
 }
 
 // memo: クラス名と関数名を同じにしない方がよいと思う。準備・キャプチャ・切断とかに分けた方がいいと思う。1つにまとめたいんだった他の名前を検討すべき。
-// TODO: クラス名と関数名が同じ場所はどこ？
 /**
 * @brief  HBI SDK を使用して、デバイスの接続、切断、画像取得などの操作を行う関数
 * @details HBI SDK の初期化をして、デバイスへ接続する。
@@ -89,7 +88,7 @@ bool CapturerByHBIDlg() {
         return false;
     }
 
-    // SDK のイベントコールバック関数を設定する。イベントが発生したとき、 SDK が UserHBICallback を呼び出す。
+    // SDK のイベントコールバック関数を設定する。イベントが発生したとき、 HBI SDK が UserHBICallback を呼び出す。
     if (!hbiDeviceCtrl.SetCallbackFunction()) {
         return false;
     }

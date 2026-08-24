@@ -36,7 +36,7 @@ class CHBIDeviceCtrl
 {
 private:
 
-	void*                    m_hHBI;               //!< HBISDK のハンドル。これで SDK の関数を呼び出す
+	void*                    m_hHBI;               //!< HBI SDK インスタンスのハンドル。HBI SDK の関数を呼び出す際に使用する。
 	bool                     m_bIsInitialized;     //!< 初期化されているか示すフラグ
 	bool                     m_bIsCapturing;       //!< 画像取得中かどうかを示すフラグ
 	bool 				     m_bIsCaptureFinished; //!< 画像取得が完了したかどうかを示すフラグ
@@ -204,8 +204,8 @@ public:
 	}
 
 	/**
-	 * @brief   キャプチャを停止し、画像バッファと SDK ハンドルを解放する。
-	 * @details キャプチャ中の場合は停止してから、画像バッファ、 m_hHBI が保持する SDK ハンドルを解放する。
+	 * @brief   キャプチャを停止し、画像バッファと HBI SDK インスタンスのハンドルを解放する。
+	 * @details キャプチャ中の場合は停止してから、画像バッファ、 m_hHBI が保持する HBI SDK インスタンスのハンドルを解放する。
 	 */
 	bool Close() {
 		LOG_BEGINF0(7, "gN20| HBIDeviceCtrl::Close()");
@@ -246,7 +246,7 @@ public:
 
 	// memo: これは SDK の初期化？
 	/**
-	 * @brief  SDK の初期化を行う。
+	 * @brief  HBI SDK のインスタンスを初期化し、SDK ハンドルを取得する。
 	 * @return true: 成功, false: 失敗
 	 */
 	bool Initialize() {
@@ -271,8 +271,8 @@ public:
 
 	// memo: SDK とはツールキットではないですか？
 	/**
-	 * @brief   SDK のイベントコールバック関数を設定する。
-	 * @details イベントが起こった時、SDK が this ポインタを引数として UserHBICallback を呼び出す。
+	 * @brief   HBI SDK にイベントコールバック関数を登録する。
+	 * @details イベントが起こった時、HBI SDK が this ポインタを引数として UserHBICallback を呼び出す。
 	 * @return  true: 成功, false: 失敗
 	 */
 	bool SetCallbackFunction() {
@@ -371,7 +371,7 @@ public:
 	bool SetCaptureParams(const struct CCaptureConfig& krcaptureConfig) {
 		LOG_BEGINF0(7, "t4Jj| HBIDeviceCtrl::SetCaptureParams()");
 		if (!IsInitialized()) { return false; }
-		CMOS_ZOOM_RECT hbicmos_zoom_rect; // 取得領域を格納する構造体
+		CMOS_ZOOM_RECT hbiCmos_Zoom_Rect; // 取得領域を格納する構造体
 
 		// int iResult; // memo: コストが小さい iResult を使いまわす理由があれば教えてください。
 					 // -> 特にありません
@@ -407,26 +407,26 @@ public:
 			const std::string kstrProductCode = GetFpdProductCode();
 
 			if (kstrProductCode == "X-Panel3030zFDM") {
-				hbicmos_zoom_rect.utop    = (krcaptureConfig.m_iOriginalHeight - krcaptureConfig.m_iCaptureAreaHeight) / 2;
-				hbicmos_zoom_rect.ubottom = hbicmos_zoom_rect.utop + krcaptureConfig.m_iCaptureAreaTop - 1;
-				hbicmos_zoom_rect.uleft   = 0;
-				hbicmos_zoom_rect.uright  = 0;
+				hbiCmos_Zoom_Rect.utop    = (krcaptureConfig.m_iOriginalHeight - krcaptureConfig.m_iCaptureAreaHeight) / 2;
+				hbiCmos_Zoom_Rect.ubottom = hbiCmos_Zoom_Rect.utop + krcaptureConfig.m_iCaptureAreaTop - 1;
+				hbiCmos_Zoom_Rect.uleft   = 0;
+				hbiCmos_Zoom_Rect.uright  = 0;
 			} else {
-				hbicmos_zoom_rect.utop    = krcaptureConfig.m_iCaptureAreaTop;
-				hbicmos_zoom_rect.ubottom = krcaptureConfig.m_iCaptureAreaTop + krcaptureConfig.m_iCaptureAreaHeight - 1;
-				hbicmos_zoom_rect.uleft   = 0;
-				hbicmos_zoom_rect.uright  = 0;
+				hbiCmos_Zoom_Rect.utop    = krcaptureConfig.m_iCaptureAreaTop;
+				hbiCmos_Zoom_Rect.ubottom = krcaptureConfig.m_iCaptureAreaTop + krcaptureConfig.m_iCaptureAreaHeight - 1;
+				hbiCmos_Zoom_Rect.uleft   = 0;
+				hbiCmos_Zoom_Rect.uright  = 0;
 			}
 			// ZoomWidth, ZoomHeight が 0 の時はフルサイズになるようにする。
 			if (krcaptureConfig.m_iCaptureAreaWidth == 0) {
-				hbicmos_zoom_rect.uleft  = 0;
-				hbicmos_zoom_rect.uright = 0;
+				hbiCmos_Zoom_Rect.uleft  = 0;
+				hbiCmos_Zoom_Rect.uright = 0;
 			}
 			if (krcaptureConfig.m_iCaptureAreaHeight == 0) {
-				hbicmos_zoom_rect.utop    = 0;
-				hbicmos_zoom_rect.ubottom = 0;
+				hbiCmos_Zoom_Rect.utop    = 0;
+				hbiCmos_Zoom_Rect.ubottom = 0;
 			}
-			int iResult = HBI_MSetZoomModeRect(m_hHBI, hbicmos_zoom_rect);
+			int iResult = HBI_MSetZoomModeRect(m_hHBI, hbiCmos_Zoom_Rect);
 			if (!IsSuccess(iResult)) {
 				return false;
 			}
@@ -438,7 +438,7 @@ public:
 		LOG_INPROGRESSF("oWAx|  GainType     to %d", krcaptureConfig.m_iGainType);
 		LOG_INPROGRESSF("cpe2|  BinningType  to %d", krcaptureConfig.m_iBinningType);
 		LOG_INPROGRESSF("VJPA|  ExposureTime to %d ms", krcaptureConfig.m_imsExposureTime);
-		LOG_INPROGRESSF("TKz2|  CaptureArea  to (Left, Top) = (%d, %d), (Right, Bottom) = (%d, %d)", hbicmos_zoom_rect.uleft, hbicmos_zoom_rect.utop, hbicmos_zoom_rect.uright, hbicmos_zoom_rect.ubottom);
+		LOG_INPROGRESSF("TKz2|  CaptureArea  to (Left, Top) = (%d, %d), (Right, Bottom) = (%d, %d)", hbiCmos_Zoom_Rect.uleft, hbiCmos_Zoom_Rect.utop, hbiCmos_Zoom_Rect.uright, hbiCmos_Zoom_Rect.ubottom);
 
 		return true;
 	}
@@ -453,9 +453,9 @@ public:
 		// memo: 前回は”、”が and なのか or なのか分からなくてコメントしました。
 		// if () の中は改行で読みやすくなっていると思いますが、コメントからも上記が分かるように書いてくれると理解しやすいと思います。
 		// 以下のいずれかの状態である場合はバッファを確保しない。
-		// SDK の未初期化、デバイスの未接続、撮影中
+		// HBI SDK の未初期化、デバイスの未接続、撮影中
 		LOG_BEGINF0(7, "Hef4| HBIDeviceCtrl::AllocateImageBuffer()");
-		if (    !IsInitialized    ()  // SDK の未初期化
+		if (    !IsInitialized    ()  // HBI SDK の未初期化
 		     || !IsDeviceConnected()  // デバイスの未接続
 		     ||  IsCapturing      ()) // 撮影中
 		{
@@ -491,16 +491,16 @@ public:
 		LOG_BEGINF0(7, "GI8J| HBIDeviceCtrl::UpdateImageProperties()");
 		if (!IsInitialized()) { return false; }
 
-		IMAGE_PROPERTY hbiImageProperty; // FPD プロパティの構造体
-		int iResult = HBI_GetImageProperty(m_hHBI, &hbiImageProperty);
+		IMAGE_PROPERTY hbiImage_Property; // FPD プロパティの構造体
+		int iResult = HBI_GetImageProperty(m_hHBI, &hbiImage_Property);
 		if (!IsSuccess(iResult)) {
 			// 取得に失敗した場合は、画像サイズを 0 に設定する。
 			m_iImageWidth  = 0;
 			m_iImageHeight = 0;
 			return false;
 		}
-		m_iImageWidth  = hbiImageProperty.nwidth;
-		m_iImageHeight = hbiImageProperty.nheight;
+		m_iImageWidth  = hbiImage_Property.nwidth;
+		m_iImageHeight = hbiImage_Property.nheight;
 		LOG_INPROGRESSF("NaxT| Image Properties: Width=%d, Height=%d", m_iImageWidth, m_iImageHeight);
 		return true;
 	}
@@ -529,8 +529,8 @@ public:
 		/*
 		LIVE_ACQ_DEFAULT_TYPE は HBI SDK の複数枚撮影するモードで、取得した画像の先頭アドレスはコールバック関数で受け取る。
 		*/
-		FPD_AQC_MODE hbifpd_aqc_mode;
-		hbifpd_aqc_mode.eAqccmd = LIVE_ACQ_DEFAULT_TYPE;
+		FPD_AQC_MODE hbiFpd_Aqc_Mode;
+		hbiFpd_Aqc_Mode.eAqccmd = LIVE_ACQ_DEFAULT_TYPE;
 
 		if (!IsInitialized()) { return false; }
 
@@ -542,7 +542,7 @@ public:
 
 		ResetCaptureState(); // 取得状態をリセットする。
 
-		int iResult = HBI_LiveAcquisition(m_hHBI, hbifpd_aqc_mode);
+		int iResult = HBI_LiveAcquisition(m_hHBI, hbiFpd_Aqc_Mode);
 		if (!IsSuccess(iResult)) {
 			return false;
 		}
@@ -626,11 +626,12 @@ private:
 	 */
 	bool IsSuccess(const int kiResult) const {
 		LOG_BEGINF0(2, "UCQS| HBIDeviceCtrl::IsSuccess(kiResult = %d)", kiResult);
-		HBIRETCODE hbierr = static_cast<HBIRETCODE>(kiResult);
+		HBIRETCODE hbiretcode = static_cast<HBIRETCODE>(kiResult);
+		// HBI_SUCCSS は DT 側の誤字。
 		if (kiResult == HBI_SUCCSS) {
 			return true;
 		} else {
-			LOG_INPROGRESSF("9y9z| Error: %s", CHBIERRStr(hbierr).c_str());
+			LOG_INPROGRESSF("9y9z| Error: %s", CHBIERRStr(hbiretcode).c_str());
 			return false;
 		}
 	}
@@ -709,18 +710,18 @@ private:
 	}
 
 	/**
-	 * @brief     SDK のイベントコールバック関数。SDK がイベントを検知した時に呼び出される。
-	 * @param[in] pContext       SDK 側で取得したオブジェクトのポインタ。
+	 * @brief     HBI SDK のイベントコールバック関数。HBI SDK がイベントを検知した時に呼び出される。
+	 * @param[in] pContext       コールバック登録時に SDK へ渡したポインタ。
 	 * @param[in] iFpdId         デバイス ID
 	 * @param[in] ucEventId      イベント ID
 	 * @param[in] pEventParam1   イベントに関するパラメータ
 	 * @param[in] iEventParam2   イベントに関するパラメータ
 	 * @param[in] iEventParam3   イベントに関するパラメータ
 	 * @param[in] iEventParam4   イベントに関するパラメータ
-	 * @details   SDK の仕様上、コールバック関数は static メソッドかつ int 型の関数である必要がある。
+	 * @details   HBI SDK の仕様上、コールバック関数は static メソッドかつ int 型の関数である必要がある。
 	 */
 	static int UserHBICallback(void* pContext, int iFpdId, unsigned char ucEventId, void* pEventParam1, int iEventParam2, int iEventParam3, int iEventParam4) {
-		// SDK側で取得したポインタを CHBIDeviceCtrl クラスのオブジェクトのポインタとしてキャストする。
+		// コールバック登録時に SDK へ渡したポインタを CHBIDeviceCtrl クラスのオブジェクトのポインタとしてキャストする。
 		CHBIDeviceCtrl* pCHBIDeviceCtrl = static_cast<CHBIDeviceCtrl*>(pContext);
 		if (!pCHBIDeviceCtrl) { return 0; }
 		pCHBIDeviceCtrl->OnHBICallback(iFpdId, ucEventId, pEventParam1, iEventParam2, iEventParam3, iEventParam4);
@@ -728,9 +729,9 @@ private:
 	}
 
 	/**
-	 * @brief     SDK のイベントコールバック関数から呼び出される実装関数。イベントに応じて処理を行う。
-	 * @param[in] iFpdId         デバイス ID
-	 * @param[in] ucEventId      イベント ID
+	 * @brief     HBI SDK のイベントコールバック関数から呼び出される実装関数。イベントに応じて処理を行う。
+	 * @param[in] iFpdId         イベントが発生したデバイス ID
+	 * @param[in] ucEventId      発生したイベント ID
 	 * @param[in] pEventParam1   イベントに関するパラメータ
 	 * @param[in] iEventParam2   イベントに関するパラメータ
 	 * @param[in] iEventParam3   イベントに関するパラメータ

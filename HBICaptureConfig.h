@@ -20,11 +20,10 @@ struct CCaptureConfig {
 
     /**
      * @brief JSON ファイル内の ProductCode を格納するベクトル。トップレベルの配列に格納されている。
-     * @memo  このベクトルは JSON 内に記述されているすべての ProductCode を格納するので、 s をつけています。
     */
-    std::vector<std::string> m_vecstrProductCodes;
+    std::vector<std::string> m_vecstrProductCode;
     /** @brief オブジェクトのテキストを格納するベクトル。トップレベルの配列に格納されている。 */
-    std::vector<std::string> m_vecstrObjectTexts;
+    std::vector<std::string> m_vecstrObjectText;
 
     /**
      *  @brief 外部から渡された設定ファイルと ProductCode で初期化する
@@ -78,8 +77,8 @@ struct CCaptureConfig {
         m_iCaptureAreaTop    = 0;
         m_iCaptureAreaWidth  = 0;
         m_iCaptureAreaHeight = 0;
-		m_vecstrProductCodes.clear();
-		m_vecstrObjectTexts.clear();
+		m_vecstrProductCode.clear();
+		m_vecstrObjectText.clear();
     }
 
     /**
@@ -146,7 +145,7 @@ struct CCaptureConfig {
                     bIsInString = false;
                     if (bIsPushBackString) {
                         // 文字列をベクトルに追加して、次の文字列をキャプチャするためにクリアする。
-                        m_vecstrProductCodes.emplace_back(strCurrentTopLevelString);
+                        m_vecstrProductCode.emplace_back(strCurrentTopLevelString);
                         strCurrentTopLevelString.clear();
                         bIsPushBackString = false;
                     }
@@ -200,22 +199,22 @@ struct CCaptureConfig {
                     iObjectDepth--;
                     // オブジェクトの終了時にPushBackした文字列(ProductCode)とオブジェクトのテキストをそれぞれのベクトルに入れる。
                     if (iObjectDepth == 0 && szObjectStart != std::string::npos) {
-                        // strParamsJsonText の { と } の間のテキストを m_vecstrObjectTexts に入れる。
-                        m_vecstrObjectTexts.emplace_back(strParamsJsonText.substr(szObjectStart, iIndex - szObjectStart + 1));
+                        // strParamsJsonText の { と } の間のテキストを m_vecstrObjectText に入れる。
+                        m_vecstrObjectText.emplace_back(strParamsJsonText.substr(szObjectStart, iIndex - szObjectStart + 1));
                         szObjectStart = std::string::npos; // 初期化
                     }
                 }
             }
         }
         // ProductCode とオブジェクトのテキストの数が一致してない場合は、ログに出力して false を返す。
-        if (m_vecstrProductCodes.size() != m_vecstrObjectTexts.size()) {
-            LOG_INPROGRESSF("pC5R| Mismatch between ProductCodes and ObjectTexts: %zu and %zu", m_vecstrProductCodes.size(), m_vecstrObjectTexts.size());
+        if (m_vecstrProductCode.size() != m_vecstrObjectText.size()) {
+            LOG_INPROGRESSF("pC5R| Mismatch between ProductCodes and ObjectTexts: %zu and %zu", m_vecstrProductCode.size(), m_vecstrObjectText.size());
             return false;
         }
         // 読み込んだオブジェクトをログに出力する。
-        for (int iIndex = 0; iIndex < static_cast<int>(m_vecstrProductCodes.size()); ++iIndex) {
-            LOG_INPROGRESSF("WjD6| m_vecstrProductCodes[%d] = %s", static_cast<int>(iIndex), m_vecstrProductCodes[iIndex].c_str());
-            LOG_INPROGRESSF("jsHs| m_vecstrObjectTexts [%d] = %s", static_cast<int>(iIndex), m_vecstrObjectTexts[iIndex].c_str());
+        for (int iIndex = 0; iIndex < static_cast<int>(m_vecstrProductCode.size()); ++iIndex) {
+            LOG_INPROGRESSF("WjD6| m_vecstrProductCode[%d] = %s", static_cast<int>(iIndex), m_vecstrProductCode[iIndex].c_str());
+            LOG_INPROGRESSF("jsHs| m_vecstrObjectText [%d] = %s", static_cast<int>(iIndex), m_vecstrObjectText[iIndex].c_str());
         }
         return true;
     }
@@ -225,7 +224,7 @@ struct CCaptureConfig {
     /**
      * @brief     指定された ProductCode に対応するオブジェクトのテキストを取得し、メンバ変数に格納する。 // memo: スペースがない
      * @param[in] krstrTargetProductCode ProductCode
-	 * @details   m_vecstrProductCodes と m_vecstrObjectTexts を走査し、 krstrTargetProductCode と一致する ProductCode を探す
+	 * @details   m_vecstrProductCode と m_vecstrObjectText を走査し、 krstrTargetProductCode と一致する ProductCode を探す
      *            1. 一致する ProductCode が見つかった場合は、そのインデックスのオブジェクトのテキストを取得し、メンバ変数に格納する
      *            2. 一致する ProductCode が見つからなかった場合は、空の ProductCode のオブジェクトのテキストを取得し、メンバ変数に格納する
 	 * @return    true: メンバ変数への格納に成功, false: 失敗
@@ -234,8 +233,9 @@ struct CCaptureConfig {
         LOG_BEGINF0(7, "Dgw4| CaptureConfig::ApplyCaptureConfig()");
 
         // memo: vec~s のsは冗長では？どこかで指摘していたと思うので、他もチェックしてください。
+        // ~s を消しました。 vec が複数形の意味として扱っていませんでした。
         // ProductCode とオブジェクトのテキストが空の場合は、ログに出力して false を返す。
-        if (m_vecstrProductCodes.empty() || m_vecstrObjectTexts.empty()) {
+        if (m_vecstrProductCode.empty() || m_vecstrObjectText.empty()) {
             LOG_INPROGRESSF("kZQH| No ProductCodes or ObjectTexts found in JSON.");
             return false;
         }
@@ -246,9 +246,9 @@ struct CCaptureConfig {
         bool bIsProductCodeEmpty   = false; // memo: bIsProductCodeEmpty?
 
 
-        for (int iIndex = 0; iIndex < static_cast<int>(m_vecstrProductCodes.size()); ++iIndex) {
-            const std::string& krstrProductCode = m_vecstrProductCodes[iIndex];
-            const std::string& krstrObjectText  = m_vecstrObjectTexts[iIndex];
+        for (int iIndex = 0; iIndex < static_cast<int>(m_vecstrProductCode.size()); ++iIndex) {
+            const std::string& krstrProductCode = m_vecstrProductCode[iIndex];
+            const std::string& krstrObjectText  = m_vecstrObjectText[iIndex];
 
             std::istringstream InputStream(krstrObjectText);
             nlohmann::json objectText;
