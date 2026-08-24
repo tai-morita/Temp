@@ -77,7 +77,7 @@ public:
 		LOG_BEGINF0(7, "EFg7| HBIDeviceCtrl::~HBIDeviceCtrl()");
 
 		if (!Close()) {
-			LOG_INPROGRESSF("Error: Device cleanup failed during destruction.");
+			LOG_INPROGRESSF("IBHB| Error: Device cleanup failed during destruction.");
 		}
 	}
 
@@ -101,7 +101,7 @@ public:
 	 * @return  取得に成功した場合はシリアル番号の文字列、失敗した場合は空文字列。
 	 */
 	std::string GetFpdSerialNumber() const {
-		LOG_BEGINF0(7, "uHRU| HBIDeviceCtrl::GetFPDSerialNumber()");
+		LOG_BEGINF0(2, "uHRU| HBIDeviceCtrl::GetFPDSerialNumber()");
 		// パネルの情報を取得する。
 		if (!m_bIsInitialized) { return ""; }
 		// シリアルは 13 文字 + NULL 文字の 14 bytes で取得する。
@@ -110,7 +110,6 @@ public:
 		if (!IsSuccess(iResult)) {
 			return "";
 		}
-		LOG_INPROGRESSF("X383| FPD Serial Number: %s", cSerialNumber);
 		return std::string(cSerialNumber);
 	}
 
@@ -123,12 +122,11 @@ public:
 	 * @return  取得に成功した場合は製品コードの文字列、失敗した場合は空文字列。
 	 */
 	std::string GetFpdProductCode() {
-		LOG_BEGINF0(7, "HBIDeviceCtrl::GetFpdProductCode()");
+		LOG_BEGINF0(2, "deL3| HBIDeviceCtrl::GetFpdProductCode()");
 		if (!m_bIsInitialized) { return ""; }
 		// 16 文字 + NULL 文字の 17 bytes 以上確保する必要がある。
 		char cProductCode[24] = { 0 };
 		int iResult = HBI_GetHbiProductCode(m_hHBI, cProductCode);
-		LOG_INPROGRESSF("9ia7| FPD Product Code: %s", std::string(cProductCode).c_str());
 		if (!IsSuccess(iResult)) {
 			return "";
 		}
@@ -141,7 +139,7 @@ public:
 	 * @return  取得に成功した場合は SDK のバージョンの文字列、失敗した場合は空文字列。
 	 */
 	std::string GetSDKVersion() const {
-		LOG_BEGINF0(7, "Clfj| HBIDeviceCtrl::GetSDKVersion()");
+		LOG_BEGINF0(2, "Clfj| HBIDeviceCtrl::GetSDKVersion()");
 		if (!m_bIsInitialized) { return ""; }
 		// SDK バージョンの取得は 64 bytes 以上確保する必要がある。
 		char cSDKVersion[64] = { 0 };
@@ -150,7 +148,6 @@ public:
 		if (!IsSuccess(iResult)) {
 			return "";
 		}
-		LOG_INPROGRESSF("5HdC| SDK Version: %s", cSDKVersion);
 		return std::string(cSDKVersion);
 	}
 
@@ -214,7 +211,7 @@ public:
 		if (m_bIsCapturing) {
 			LOG_INPROGRESSF("2ycH| Stopping capture before closing SDK handle.");
 			if (!StopCapture()) {
-				LOG_INPROGRESSF("Failed to stop capture before closing SDK handle.");
+				LOG_INPROGRESSF("sCVu| Failed to stop capture before closing SDK handle.");
 				return false;
 			}
 		}
@@ -254,9 +251,9 @@ public:
 
 		if (IsInitialized()) {
 			// SDK が既に初期化されている場合は、現在のセッションを閉じてから再初期化する。
-			LOG_INPROGRESSF("Device is already initialized. Close the current session before reinitializing.");
+			LOG_INPROGRESSF("uj4t| Device is already initialized. Close the current session before reinitializing.");
 			if (!Close()) {
-				LOG_INPROGRESSF("Failed to close the current session before reinitializing.");
+				LOG_INPROGRESSF("nrj1| Failed to close the current session before reinitializing.");
 				return false;
 			}
 		}
@@ -510,7 +507,7 @@ public:
 	* @details iFrameCounter, bIsCaptureFinished をリセットする。
 	*/
 	void ResetCaptureState() {
-		LOG_BEGINF0(7, "HBIDeviceCtrl::ResetCaptureState()");
+		LOG_BEGINF0(7, "TSZn| HBIDeviceCtrl::ResetCaptureState()");
 		m_iFrameCounter      = 0;     // フレームカウンタをリセットする。
 		m_bIsCaptureFinished = false; // 画像取得完了フラグをリセットする。
 	}
@@ -536,7 +533,7 @@ public:
 
 		// 画像バッファが確保済みか確認する。
 		if (m_pImageBuffer == nullptr) {
-			LOG_INPROGRESSF("Error: Image buffer is not allocated. Please call AllocateImageBuffer() before starting capture.");
+			LOG_INPROGRESSF("HCq8| Error: Image buffer is not allocated. Please call AllocateImageBuffer() before starting capture.");
 			return false;
 		}
 
@@ -748,7 +745,7 @@ private:
 			// SDK から画像データが送られてきた場合、peventParam1 に IMAGE_DATA_ST 構造体のポインタが渡される。
 			if (!pEventParam1) {
 				// pEventParam1 が null の場合、画像データが送られてこないため、ログに出力して処理を終了する。
-				LOG_INPROGRESSF("Received null event parameter pointer.");
+				LOG_INPROGRESSF("TCXe| Received null event parameter pointer.");
 				return;
 			}
 
