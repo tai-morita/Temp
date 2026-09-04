@@ -26,6 +26,16 @@
 // HBIType の中にある構造体の変数の prefix の多くが hbi になっているので、構造体を示す hbiXXX にした方がいいと思います。
 // SDK と書いているところが本当に SDK なのか気になります。SDK の初期化など。
 // 他に影響があって関数名に記載していない処理はなるべく避けた方がいいと思います。
+// 08/24: 1. チャットで話した通り、変数名の指摘 xxxYYY は誤りで、 xxxYyy(or xxx のみ) が正解でした。
+//        2. SDK は開発キットなので、まだコメントに誤りがあるように思います。
+//           例えば、 SDK のインスタンスというものが存在するのか。HBI_Init() を見るとライブラリの初期化と書いてあります。
+//           逆に、 HBI_GetSDKVerion() は API のバージョンを取得ではないかも。調べてみてください。
+//        3. param[in] を":"で区切ってるとこが有るけど、区切らなくていい。区切るんだったら統一した方がいい。
+//        4. const にできるところは const にした方がいいと思います。
+//           気をつけていると思うけれど抜けているところがあるので、再度チェックしてみてください。
+//        5. Capture を画像取得と説明すると混乱するので、撮影とかに言い換えた方がいいかもしれません。
+//           例えば画像を1回取得したら m_bIsCaptureFinished は true になりそうですが、指定枚数に達しないと true になりません。
+//           しかし、 m_bIsCaptureFinished のコメントは「画像取得が完了したかどうかを示すフラグ」
 
 // HBI で通信するデバイスの動作を制御するクラス。
 /**
@@ -50,7 +60,6 @@ private:
 	CArray4D<uint16_t>       m_a4duiImageBuffer;   //!< 取得した画像データを保存する 4 次元配列
 
 public:
-	// memo: doxygen コメントじゃない
 	/**
 	 * @brief   コンストラクタ。
 	 */
@@ -76,8 +85,8 @@ public:
 	{
 		LOG_BEGINF0(7, "EFg7| HBIDeviceCtrl::~HBIDeviceCtrl()");
 
-		if (!Close()) {
-			LOG_INPROGRESSF("IBHB| Error: Device cleanup failed during destruction.");
+		if (!Shutdown()) {
+			LOG_INPROGRESSF("y6dU| Error: Device cleanup failed during destruction.");
 		}
 	}
 
@@ -86,14 +95,12 @@ public:
 	/**
 	 * @brief CapturerHBIDlg.cpp からアクセスするためのゲッターメソッド。
 	*/
-	const CArray4D<uint16_t>& GetImageBuffer       () const { return m_a4duiImageBuffer  ; } //!< 取得した画像データを返す。
-	const int                 GetImageWidth        () const { return m_iImageWidth       ; } //!< 画像の幅を返す。
-	const int                 GetImageHeight       () const { return m_iImageHeight      ; } //!< 画像の高さを返す。
-	const int                 GetCapturedFrameCount() const { return m_iFrameCounter     ; } //!< 取得したフレーム数を返す。
-
-	bool                      IsCapturing          () const { return m_bIsCapturing      ; } //!< 画像取得中か判断する。
-	bool                      IsCaptureFinished    () const { return m_bIsCaptureFinished; } //!< 画像の取得が完了したか判断する。
-
+	const CArray4D<uint16_t>& GetImageBuffer  () const { return m_a4duiImageBuffer  ; } //!< 取得した画像データを返す。
+	int                 GetImageWidth         () const { return m_iImageWidth       ; } //!< 画像の幅を返す。
+	int                 GetImageHeight        () const { return m_iImageHeight      ; } //!< 画像の高さを返す。
+	int                 GetCapturedFrameCount () const { return m_iFrameCounter     ; } //!< 取得したフレーム数を返す。
+	bool                IsCapturing           () const { return m_bIsCapturing      ; } //!< 画像取得中か判断する。
+	bool                IsCaptureFinished     () const { return m_bIsCaptureFinished; } //!< 画像の取得が完了したか判断する。
 
 	/**
 	 * @brief   デバイスのシリアル番号を取得する。
@@ -101,20 +108,18 @@ public:
 	 * @return  取得に成功した場合はシリアル番号の文字列、失敗した場合は空文字列。
 	 */
 	std::string GetFpdSerialNumber() const {
-		LOG_BEGINF0(2, "uHRU| HBIDeviceCtrl::GetFPDSerialNumber()");
+		LOG_BEGINF0(7, "uHRU| HBIDeviceCtrl::GetFPDSerialNumber()");
 		// パネルの情報を取得する。
 		if (!m_bIsInitialized) { return ""; }
 		// シリアルは 13 文字 + NULL 文字の 14 bytes で取得する。
 		char cSerialNumber[16] = { 0 };
-		int iResult = HBI_GetFPDSerialNumber(m_hHBI, cSerialNumber);
-		if (!IsSuccess(iResult)) {
+		const int kiResult = HBI_GetFPDSerialNumber(m_hHBI, cSerialNumber);
+		if (!IsSuccess(kiResult)) {
 			return "";
 		}
+		LOG_INPROGRESSF("X383| FPD Serial Number: %s", cSerialNumber);
 		return std::string(cSerialNumber);
 	}
-
-	// memo: Getter は メンバ変数への格納をしない方がいいと思います。
-	// -> メンバ変数への格納は UpdateFpdProductCode() で行うようにしました。
 
 	/**
 	 * @brief   デバイスの製品コードを取得する。
@@ -122,12 +127,13 @@ public:
 	 * @return  取得に成功した場合は製品コードの文字列、失敗した場合は空文字列。
 	 */
 	std::string GetFpdProductCode() {
-		LOG_BEGINF0(2, "deL3| HBIDeviceCtrl::GetFpdProductCode()");
+		LOG_BEGINF0(7, "HBIDeviceCtrl::GetFpdProductCode()");
 		if (!m_bIsInitialized) { return ""; }
 		// 16 文字 + NULL 文字の 17 bytes 以上確保する必要がある。
 		char cProductCode[24] = { 0 };
-		int iResult = HBI_GetHbiProductCode(m_hHBI, cProductCode);
-		if (!IsSuccess(iResult)) {
+		const int kiResult = HBI_GetHbiProductCode(m_hHBI, cProductCode);
+		LOG_INPROGRESSF("9ia7| FPD Product Code: %s", std::string(cProductCode).c_str());
+		if (!IsSuccess(kiResult)) {
 			return "";
 		}
 		return std::string(cProductCode);
@@ -139,27 +145,30 @@ public:
 	 * @return  取得に成功した場合は SDK のバージョンの文字列、失敗した場合は空文字列。
 	 */
 	std::string GetSDKVersion() const {
-		LOG_BEGINF0(2, "Clfj| HBIDeviceCtrl::GetSDKVersion()");
+		LOG_BEGINF0(7, "Clfj| HBIDeviceCtrl::GetSDKVersion()");
 		if (!m_bIsInitialized) { return ""; }
 		// SDK バージョンの取得は 64 bytes 以上確保する必要がある。
 		char cSDKVersion[64] = { 0 };
 
-		int iResult = HBI_GetSDKVerion(m_hHBI, cSDKVersion);
-		if (!IsSuccess(iResult)) {
+		const int kiResult = HBI_GetSDKVerion(m_hHBI, cSDKVersion);
+		if (!IsSuccess(kiResult)) {
 			return "";
 		}
+		LOG_INPROGRESSF("5HdC| SDK Version: %s", cSDKVersion);
 		return std::string(cSDKVersion);
 	}
 
+	// 08/24: SDK のバージョンではない？
+	// -> 修正しました。
 	/**
-	 * @brief   HBI API のバージョンをログに出力する。
+	 * @brief   HBI SDK のバージョンをログに出力する。
 	 * @return  true: 取得に成功, false: 取得に失敗
 	*/
-	bool PrintAPIVersion() {
-		LOG_BEGINF0(7, "ijvR| HBIDeviceCtrl::PrintAPIVersion()");
+	bool PrintSDKVersion() {
+		LOG_BEGINF0(7, "ijvR| HBIDeviceCtrl::PrintSDKVersion()");
 		if (!m_bIsInitialized) { return false; }
-		// HBIAPI のバージョンを取得する。
-		LOG_INPROGRESSF("weKE| HBI API Version: %s", GetSDKVersion().c_str());
+		// HBISDK のバージョンを取得する。
+		LOG_INPROGRESSF("weKE| HBI SDK Version: %s", GetSDKVersion().c_str());
 		return true;
 	}
 
@@ -175,47 +184,47 @@ public:
 		return true;
 	}
 
+	// 08/24: doxygen コメントを見直した方がいいかもしれません。
+	//        details の内容はこの関数を使う人にとって知っておいた方がいい？
+	//        細かいけど、PORT が大文字のまま。スペースが多い。「関数を実行する」がよくわからない。
+	//        -> details の内容を note に変更しました。
 	/**
-	 * @brief       デバイスに接続する。関数を実行する。
-	 * @details     IPアドレスを char* 型に変換して、ConnectDevice(char*, unsigned short, char*, unsigned short) を呼び出す。
-	 *              HBI_ConnectDetectorJumbo() が char* 型を要求するため、string* 型の文字列を char* 型に変換する必要がある。
-	 * @param[in]   kpstrDestIpAddr デバイスの IP アドレス。
-	 * @param[in]   kusDestPORT     デバイスのポート番号。
-	 * @param[in]   kpstrSrcIpAddr  PC の IP アドレス。
-	 * @param[in]   kusSrcPort      PC のポート番号。
+	 * @brief     デバイスに接続する。
+	 * @param[in] kpstrDestIpAddr デバイスの IP アドレス。
+	 * @param[in] kusDestPort     デバイスのポート番号。
+	 * @param[in] kpstrSrcIpAddr  PC の IP アドレス。
+	 * @param[in] kusSrcPort      PC のポート番号。
+	 * @note      IPアドレスを char* 型に変換して、ConnectDevice(char*, unsigned short, char*, unsigned short) を呼び出す。
+	 *            HBI_ConnectDetectorJumbo() が char* 型を要求するため、string* 型の文字列を char* 型に変換する必要がある。
 	*/
 	bool ConnectDevice(const std::string* kpstrDestIpAddr, const unsigned short kusDestPort, const std::string* kpstrSrcIpAddr, const unsigned short kusSrcPort) {
 		LOG_BEGINF0(7, "GUGw| HBIDeviceCtrl::ConnectDevice()");
-		// SDK に渡す IP アドレスは const ではないため、メモリを確保して char* 型に変換する。 memo: IP にスペースがない
-		const size_t szDestIpAddrBuffLen = kpstrDestIpAddr->length() + 1;
-		const size_t szSrcIpAddrBuffLen  = kpstrSrcIpAddr ->length() + 1;
-		std::unique_ptr<char[]> pcDestIpAddr = std::make_unique<char[]>(szDestIpAddrBuffLen); // memo: std::unique_ptr 使えるのであればそちらの方が安全だと思います。下も。
-		std::unique_ptr<char[]> pcSrcIpAddr  = std::make_unique<char[]>(szSrcIpAddrBuffLen );
-		memcpy_s(pcDestIpAddr.get(), szDestIpAddrBuffLen, kpstrDestIpAddr->c_str(), szDestIpAddrBuffLen);
-		memcpy_s(pcSrcIpAddr.get() , szSrcIpAddrBuffLen , kpstrSrcIpAddr ->c_str(), szSrcIpAddrBuffLen);
+		// SDK に渡す IP アドレスは const ではないため、メモリを確保して char* 型に変換する。
+		const size_t kszDestIpAddrBuffLen = kpstrDestIpAddr->length() + 1;
+		const size_t kszSrcIpAddrBuffLen  = kpstrSrcIpAddr ->length() + 1;
+		const std::unique_ptr<char[]> kpcDestIpAddr = std::make_unique<char[]>(kszDestIpAddrBuffLen);
+		const std::unique_ptr<char[]> kpcSrcIpAddr  = std::make_unique<char[]>(kszSrcIpAddrBuffLen );
+		memcpy_s(kpcDestIpAddr.get(), kszDestIpAddrBuffLen, kpstrDestIpAddr->c_str(), kszDestIpAddrBuffLen);
+		memcpy_s(kpcSrcIpAddr.get() , kszSrcIpAddrBuffLen , kpstrSrcIpAddr ->c_str(), kszSrcIpAddrBuffLen);
 		
-		bool iResult = ConnectDevice(pcDestIpAddr.get(), kusDestPort, pcSrcIpAddr.get(), kusSrcPort);
-		// bool bIsSuccess = false; // memo: この関数は最後の方で使用しているだけなので、そっちに持って行った方がいいと思います。
-		if (iResult) { return true ; } // memo: delete してから if (!iResult) { return false; } を書いたら bIsSuccess 変数は不要
-		else         { return false; }
+		const bool kiResult = ConnectDevice(kpcDestIpAddr.get(), kusDestPort, kpcSrcIpAddr.get(), kusSrcPort);
+		
+		// 08/24: return iResult; でいいかも -> 修正しました。
+		return kiResult;
 	}
 
+	// 08/24: 関数名 Close に違和感を感じました。
+	// キャプチャ停止も処理に含むのであれば関数名にも含めた方がいいかと思います。
+	// 関数 Open() が無いのに Close() があるのは違和感があります。
+	// -> Shutdown() に変更しました。
+	//    キャプチャ停止は、なんとなくハンドル解放を安全に行うために含めているつもりでしたが、3dxdではそのようになっていないので消します。
+	//             -> 停止して終了、という処理をするのであれば、そのような関数を作ろうということでしょうか。
 	/**
 	 * @brief   キャプチャを停止し、画像バッファと HBI SDK インスタンスのハンドルを解放する。
 	 * @details キャプチャ中の場合は停止してから、画像バッファ、 m_hHBI が保持する HBI SDK インスタンスのハンドルを解放する。
 	 */
-	bool Close() {
-		LOG_BEGINF0(7, "gN20| HBIDeviceCtrl::Close()");
-
-		// キャプチャ中の場合は、キャプチャを停止する。
-		if (m_bIsCapturing) {
-			LOG_INPROGRESSF("2ycH| Stopping capture before closing SDK handle.");
-			if (!StopCapture()) {
-				LOG_INPROGRESSF("sCVu| Failed to stop capture before closing SDK handle.");
-				return false;
-			}
-		}
-
+	bool Shutdown() {
+		LOG_BEGINF0(7, "gN20| HBIDeviceCtrl::Shutdown()");
 		// memo: 画像バッファを開放する処理が他にもあるため、Allocate~ 関数に対する関数 ReleaseImageBuffer() を作成した方がいいと思います。指摘がおかしければ教えてください。
 		// 画像バッファを解放する。
 		if (m_pImageBuffer != nullptr) {
@@ -242,18 +251,20 @@ public:
 	}
 
 	// memo: これは SDK の初期化？
+	// 08/24 HBI_Init() を見ると"Initialize dynamic dll" と書いてあるので、ライブラリの初期化が適切かもしれません。
+	//       SDK は開発キットを示しているので、インスタンスというものがあるか不明です。
 	/**
-	 * @brief  HBI SDK のインスタンスを初期化し、SDK ハンドルを取得する。
+	 * @brief  HBI DLL を初期化し、 SDK ハンドルを取得する。
 	 * @return true: 成功, false: 失敗
 	 */
 	bool Initialize() {
 		LOG_BEGINF0(7, "HIAb| HBIDeviceCtrl::Initialize()");
 
 		if (IsInitialized()) {
-			// SDK が既に初期化されている場合は、現在のセッションを閉じてから再初期化する。
-			LOG_INPROGRESSF("uj4t| Device is already initialized. Close the current session before reinitializing.");
-			if (!Close()) {
-				LOG_INPROGRESSF("nrj1| Failed to close the current session before reinitializing.");
+			// SDK が既に初期化されている場合は、現在のセッションをシャットダウンしてから再初期化する。
+			LOG_INPROGRESSF("BR42| Device is already initialized. Shutdown the current session before reinitializing.");
+			if (!Shutdown()) {
+				LOG_INPROGRESSF("WFds| Failed to shutdown the current session before reinitializing.");
 				return false;
 			}
 		}
@@ -268,8 +279,8 @@ public:
 
 	// memo: SDK とはツールキットではないですか？
 	/**
-	 * @brief   HBI SDK にイベントコールバック関数を登録する。
-	 * @details イベントが起こった時、HBI SDK が this ポインタを引数として UserHBICallback を呼び出す。
+	 * @brief   HBI ハンドルにイベントコールバック関数を登録する。
+	 * @details イベントが起こった時、HBI SDK が this ポインタを引数として UserHBICallback を呼び出されるようにする。
 	 * @return  true: 成功, false: 失敗
 	 */
 	bool SetCallbackFunction() {
@@ -321,20 +332,26 @@ public:
 		// iBinningType の値は 1: 1x1, 2: 2x2, 3: 3x3, 4: 4x4。
 		unsigned int uiBinningType;
 		{
-			const    int kiResult = HBI_GetBinning(m_hHBI, &uiBinningType);
+			const int kiResult = HBI_GetBinning(m_hHBI, &uiBinningType);
 			if (!IsSuccess(kiResult)) {
 				return false;
 			}
 		}
+		const unsigned int kuiBinningType = uiBinningType;
 
 		// HBI_GetCurZoomRect の引数は、キャプチャ領域の左上の座標と幅、高さを格納する。
 		unsigned int uiCaptureAreaLeft, uiCaptureAreaTop, uiCaptureAreaWidth, uiCaptureAreaHeight;
 		{
-			const    int kiResult = HBI_GetCurZoomRect(m_hHBI, &uiCaptureAreaLeft, &uiCaptureAreaTop, &uiCaptureAreaWidth, &uiCaptureAreaHeight);
+			// 08/24: 余分なスペース
+			const int kiResult = HBI_GetCurZoomRect(m_hHBI, &uiCaptureAreaLeft, &uiCaptureAreaTop, &uiCaptureAreaWidth, &uiCaptureAreaHeight);
 			if (!IsSuccess(kiResult)) {
 				return false;
 			}
 		}
+		const unsigned int kuiCaptureAreaLeft   = uiCaptureAreaLeft;
+		const unsigned int kuiCaptureAreaTop    = uiCaptureAreaTop;
+		const unsigned int kuiCaptureAreaWidth  = uiCaptureAreaWidth;
+		const unsigned int kuiCaptureAreaHeight = uiCaptureAreaHeight;
 
 		// imsExposureTime は Exposure time をミリ秒単位で表す。
 		int imsExposureTime;
@@ -344,55 +361,65 @@ public:
 				return false;
 			}
 		}
+		const int kimsExposureTime = imsExposureTime;
 		// 出力用に fps を計算する。
-		float ffps = 1.0f / static_cast<float>(imsExposureTime) * 1000.0f;
+		const float kfFps = 1.0f / static_cast<float>(kimsExposureTime) * 1000.0f;
 
 		// キャプチャパラメータをログに出力する。
 		LOG_INPROGRESSF("7Lb7| Current capture parameters:");
 		LOG_INPROGRESSF("eRFD|   Gain Type         : %d"                                               , kiGainType);
-		LOG_INPROGRESSF("md4X|   Binning Type      : %u"                                               , uiBinningType);
-		LOG_INPROGRESSF("1YIe|   Capture Area      : (Left, Top) = (%u, %u) , Width x Height = %u x %u", uiCaptureAreaLeft, uiCaptureAreaTop, uiCaptureAreaWidth, uiCaptureAreaHeight);
-		LOG_INPROGRESSF("1UKJ|   Exposure Time (ms): %d ms"                                            , imsExposureTime);
-		LOG_INPROGRESSF("6aqO|   Frame Rate (fps)  : %.2f fps"                                         , ffps);
+		LOG_INPROGRESSF("md4X|   Binning Type      : %u"                                               , kuiBinningType);
+		LOG_INPROGRESSF("1YIe|   Capture Area      : (Left, Top) = (%u, %u) , Width x Height = %u x %u", kuiCaptureAreaLeft, kuiCaptureAreaTop, kuiCaptureAreaWidth, kuiCaptureAreaHeight);
+		LOG_INPROGRESSF("1UKJ|   Exposure Time (ms): %d ms"                                            , kimsExposureTime);
+		LOG_INPROGRESSF("6aqO|   Frame Rate (fps)  : %.2f fps"                                         , kfFps);
 		return true;
 	}
 
 	/**
 	 * @brief      キャプチャパラメータを設定する。
-	 * @param[in]  krcaptureConfig: 設定するキャプチャパラメータを保持する構造体。
+	 * @param[in]  krcaptureconfig: 設定するキャプチャパラメータを保持する構造体。
 	 * @return     true: 設定に成功, false: 設定に失敗
 	 * @note       3030Z デュアル読出しのため、Width はフルエリア、Height は中心から等間隔にオフセットする必要がある。
 	 *             現在 3030Z の採用予定はない。
 	 *             2520Z は Height 方向のみオフセットが可能。
 	 */
-	bool SetCaptureParams(const struct CCaptureConfig& krcaptureConfig) {
+	bool SetCaptureParams(const struct CCaptureConfig& krcaptureconfig) {
 		LOG_BEGINF0(7, "t4Jj| HBIDeviceCtrl::SetCaptureParams()");
 		if (!IsInitialized()) { return false; }
-		CMOS_ZOOM_RECT hbiCmos_Zoom_Rect; // 取得領域を格納する構造体
+		// CMOS_ZOOM_RECT hbiCmos_Zoom_Rect; // 取得領域を格納する構造体
+		// 08/24: ROI を設定するところで宣言した方がいいのでは？
+		//        変数名は xxxYyy 形式にしてください。
+		//        そもそも CMOS じゃないのに FPD_ZOOM_RECT ではなく CMOS_ZOOM_RECT でいいのか。
+		//        -> 宣言の場所を変更しました。
+		//           インスタンス名を変更しました。 hbiCmos_Zoom_Rect -> hbicomszoomrectROI
 
 		// int iResult; // memo: コストが小さい iResult を使いまわす理由があれば教えてください。
 					 // -> 特にありません
+					 // 08/24: const にした方がいいと思います。
+					 // -> 修正しました。
 		{
 			// GainType
-			int iResult = HBI_MSetPGALevel(m_hHBI, krcaptureConfig.m_iGainType);
-			if (!IsSuccess(iResult)) {
+			const int kiResult = HBI_MSetPGALevel(m_hHBI, krcaptureconfig.m_iGainType);
+			if (!IsSuccess(kiResult)) {
 				return false;
 			}
 		}
 		{
 			// Binning
-			int iResult = HBI_MSetBinning(m_hHBI, krcaptureConfig.m_iBinningType);
-			if (!IsSuccess(iResult)) {
+			const int kiResult = HBI_MSetBinning(m_hHBI, krcaptureconfig.m_iBinningType);
+			if (!IsSuccess(kiResult)) {
 				return false;
 			}
 		}
 		{
 			// Exposure time (= 1/fps)
-			int iResult = HBI_MSetSelfDumpingTime(m_hHBI, krcaptureConfig.m_imsExposureTime);
-			if (!IsSuccess(iResult)) {
+			const int kiResult = HBI_MSetSelfDumpingTime(m_hHBI, krcaptureconfig.m_imsExposureTime);
+			if (!IsSuccess(kiResult)) {
 				return false;
 			}
 		}
+
+		CMOS_ZOOM_RECT hbicomszoomrectROI; // 取得領域を格納する構造体
 		{
 			/* ROI の設定
 			 * 横方向は設定ができない。
@@ -404,38 +431,38 @@ public:
 			const std::string kstrProductCode = GetFpdProductCode();
 
 			if (kstrProductCode == "X-Panel3030zFDM") {
-				hbiCmos_Zoom_Rect.utop    = (krcaptureConfig.m_iOriginalHeight - krcaptureConfig.m_iCaptureAreaHeight) / 2;
-				hbiCmos_Zoom_Rect.ubottom = hbiCmos_Zoom_Rect.utop + krcaptureConfig.m_iCaptureAreaTop - 1;
-				hbiCmos_Zoom_Rect.uleft   = 0;
-				hbiCmos_Zoom_Rect.uright  = 0;
+				hbicomszoomrectROI.utop    = (krcaptureconfig.m_iOriginalHeight - krcaptureconfig.m_iCaptureAreaHeight) / 2;
+				hbicomszoomrectROI.ubottom = hbicomszoomrectROI.utop + krcaptureconfig.m_iCaptureAreaTop - 1;
+				hbicomszoomrectROI.uleft   = 0;
+				hbicomszoomrectROI.uright  = 0;
 			} else {
-				hbiCmos_Zoom_Rect.utop    = krcaptureConfig.m_iCaptureAreaTop;
-				hbiCmos_Zoom_Rect.ubottom = krcaptureConfig.m_iCaptureAreaTop + krcaptureConfig.m_iCaptureAreaHeight - 1;
-				hbiCmos_Zoom_Rect.uleft   = 0;
-				hbiCmos_Zoom_Rect.uright  = 0;
+				hbicomszoomrectROI.utop    = krcaptureconfig.m_iCaptureAreaTop;
+				hbicomszoomrectROI.ubottom = krcaptureconfig.m_iCaptureAreaTop + krcaptureconfig.m_iCaptureAreaHeight - 1;
+				hbicomszoomrectROI.uleft   = 0;
+				hbicomszoomrectROI.uright  = 0;
 			}
 			// ZoomWidth, ZoomHeight が 0 の時はフルサイズになるようにする。
-			if (krcaptureConfig.m_iCaptureAreaWidth == 0) {
-				hbiCmos_Zoom_Rect.uleft  = 0;
-				hbiCmos_Zoom_Rect.uright = 0;
+			if (krcaptureconfig.m_iCaptureAreaWidth == 0) {
+				hbicomszoomrectROI.uleft  = 0;
+				hbicomszoomrectROI.uright = 0;
 			}
-			if (krcaptureConfig.m_iCaptureAreaHeight == 0) {
-				hbiCmos_Zoom_Rect.utop    = 0;
-				hbiCmos_Zoom_Rect.ubottom = 0;
+			if (krcaptureconfig.m_iCaptureAreaHeight == 0) {
+				hbicomszoomrectROI.utop    = 0;
+				hbicomszoomrectROI.ubottom = 0;
 			}
-			int iResult = HBI_MSetZoomModeRect(m_hHBI, hbiCmos_Zoom_Rect);
-			if (!IsSuccess(iResult)) {
+			const int kiResult = HBI_MSetZoomModeRect(m_hHBI, hbicomszoomrectROI);
+			if (!IsSuccess(kiResult)) {
 				return false;
 			}
 		}
 
 		// 取得フレーム数
-		SetCaptureFrame(krcaptureConfig.m_iCaptureFrame);
+		SetCaptureFrameCount(krcaptureconfig.m_iCaptureFrame);
 		LOG_INPROGRESSF("EoT2| Setting CaptureParams: ");
-		LOG_INPROGRESSF("oWAx|  GainType     to %d", krcaptureConfig.m_iGainType);
-		LOG_INPROGRESSF("cpe2|  BinningType  to %d", krcaptureConfig.m_iBinningType);
-		LOG_INPROGRESSF("VJPA|  ExposureTime to %d ms", krcaptureConfig.m_imsExposureTime);
-		LOG_INPROGRESSF("TKz2|  CaptureArea  to (Left, Top) = (%d, %d), (Right, Bottom) = (%d, %d)", hbiCmos_Zoom_Rect.uleft, hbiCmos_Zoom_Rect.utop, hbiCmos_Zoom_Rect.uright, hbiCmos_Zoom_Rect.ubottom);
+		LOG_INPROGRESSF("oWAx|  GainType     to %d", krcaptureconfig.m_iGainType);
+		LOG_INPROGRESSF("cpe2|  BinningType  to %d", krcaptureconfig.m_iBinningType);
+		LOG_INPROGRESSF("VJPA|  ExposureTime to %d ms", krcaptureconfig	.m_imsExposureTime);
+		LOG_INPROGRESSF("TKz2|  CaptureArea  to (Left, Top) = (%d, %d), (Right, Bottom) = (%d, %d)", hbicomszoomrectROI.uleft, hbicomszoomrectROI.utop, hbicomszoomrectROI.uright, hbicomszoomrectROI.ubottom);
 
 		return true;
 	}
@@ -447,8 +474,6 @@ public:
 	 * @details     画像バッファは m_a4duiImageBuffer に確保される。バッファのサイズは m_iImageWidth * m_iImageHeight * iCaptureFrame。
 	 */
 	bool AllocateImageBuffer(const int kiCaptureFrame) {
-		// memo: 前回は”、”が and なのか or なのか分からなくてコメントしました。
-		// if () の中は改行で読みやすくなっていると思いますが、コメントからも上記が分かるように書いてくれると理解しやすいと思います。
 		// 以下のいずれかの状態である場合はバッファを確保しない。
 		// HBI SDK の未初期化、デバイスの未接続、撮影中
 		LOG_BEGINF0(7, "Hef4| HBIDeviceCtrl::AllocateImageBuffer()");
@@ -488,16 +513,20 @@ public:
 		LOG_BEGINF0(7, "GI8J| HBIDeviceCtrl::UpdateImageProperties()");
 		if (!IsInitialized()) { return false; }
 
-		IMAGE_PROPERTY hbiImage_Property; // FPD プロパティの構造体
-		int iResult = HBI_GetImageProperty(m_hHBI, &hbiImage_Property);
+		// 08/24 変数名
+		//       -> 変更しました。 hbiImage_Property -> hbiimageproperty
+		//          Image Property 以上の意味を持たないので、変数名は hbiimageproperty としました
+		// IMAGE_PROPERTY hbiImage_Property; // FPD プロパティの構造体
+		IMAGE_PROPERTY hbiimageproperty; // FPD プロパティの構造体
+		int iResult = HBI_GetImageProperty(m_hHBI, &hbiimageproperty);
 		if (!IsSuccess(iResult)) {
 			// 取得に失敗した場合は、画像サイズを 0 に設定する。
 			m_iImageWidth  = 0;
 			m_iImageHeight = 0;
 			return false;
 		}
-		m_iImageWidth  = hbiImage_Property.nwidth;
-		m_iImageHeight = hbiImage_Property.nheight;
+		m_iImageWidth  = hbiimageproperty.nwidth;
+		m_iImageHeight = hbiimageproperty.nheight;
 		LOG_INPROGRESSF("NaxT| Image Properties: Width=%d, Height=%d", m_iImageWidth, m_iImageHeight);
 		return true;
 	}
@@ -507,15 +536,11 @@ public:
 	* @details iFrameCounter, bIsCaptureFinished をリセットする。
 	*/
 	void ResetCaptureState() {
-		LOG_BEGINF0(7, "TSZn| HBIDeviceCtrl::ResetCaptureState()");
+		LOG_BEGINF0(7, "1098| HBIDeviceCtrl::ResetCaptureState()");
 		m_iFrameCounter      = 0;     // フレームカウンタをリセットする。
 		m_bIsCaptureFinished = false; // 画像取得完了フラグをリセットする。
 	}
 
-	// memo: 以前書いた以下の指摘は、”LIVE_ACQ_DEFAULT_TYPE”と言われてもこの関数を使う人が理解できないという意味です。
-	// もし動画と静止画を撮影するモードがあるため「note LIVE_ACQ_DEFAULT_TYPE は HBISDK のライブキャプチャモード」と書いていたのであれば、
-	// 「動画モードで動作する」くらいでいいと思います。今 details に書いてくれている詳細な情報が関数の利用者に必要な場合はこのままでいいと思います。
-	// -> StartCapture() には不要な説明なので、 doxygen の詳細説明から削除しました。
 	/**
 	 * @brief   画像取得を開始する。
 	 * @return  true: 取得の開始に成功, false: 取得の開始に失敗
@@ -523,23 +548,24 @@ public:
 	 */
 	bool StartCapture() {
 		LOG_BEGINF0(7, "2Fbj| HBIDeviceCtrl::StartCapture()");
-		/*
-		LIVE_ACQ_DEFAULT_TYPE は HBI SDK の複数枚撮影するモードで、取得した画像の先頭アドレスはコールバック関数で受け取る。
-		*/
-		FPD_AQC_MODE hbiFpd_Aqc_Mode;
-		hbiFpd_Aqc_Mode.eAqccmd = LIVE_ACQ_DEFAULT_TYPE;
+		// 08/24: ↓1行だったら "//" でよさそう。hbiFpd_Aqc_Mode の名前を考え直す必要がある。特別な意味が無ければ使うところに書いた方がいいかも。
+		//                                    -> hbifpdaqcmodeAquisitionMode に変更しました。いい感じの名称が思いつきません。。。
+		// LIVE_ACQ_DEFAULT_TYPE は HBI SDK の複数枚撮影するモードで、取得した画像の先頭アドレスはコールバック関数で受け取る。
+		// FPD_AQC_MODE hbiFpd_Aqc_Mode;
+		FPD_AQC_MODE hbifpdaqcmodeAquisitionMode;
+		hbifpdaqcmodeAquisitionMode.eAqccmd = LIVE_ACQ_DEFAULT_TYPE;
 
 		if (!IsInitialized()) { return false; }
 
 		// 画像バッファが確保済みか確認する。
 		if (m_pImageBuffer == nullptr) {
-			LOG_INPROGRESSF("HCq8| Error: Image buffer is not allocated. Please call AllocateImageBuffer() before starting capture.");
+			LOG_INPROGRESSF("QndZ| Error: Image buffer is not allocated. Please call AllocateImageBuffer() before starting capture.");
 			return false;
 		}
 
 		ResetCaptureState(); // 取得状態をリセットする。
 
-		int iResult = HBI_LiveAcquisition(m_hHBI, hbiFpd_Aqc_Mode);
+		int iResult = HBI_LiveAcquisition(m_hHBI, hbifpdaqcmodeAquisitionMode);
 		if (!IsSuccess(iResult)) {
 			return false;
 		}
@@ -562,8 +588,8 @@ public:
 		if (!IsInitialized()) { return false; }
 		// 取得停止の指示を最大 3 回行う。
 		for (int iRetryStopAttempt = 0; m_bIsCapturing && iRetryStopAttempt < 3; iRetryStopAttempt++) {
-			int iResult = HBI_StopAcquisition(m_hHBI);
-			if (IsSuccess(iResult)) {
+			const int kiResult = HBI_StopAcquisition(m_hHBI);
+			if (IsSuccess(kiResult)) {
 				m_bIsCapturing = false; // 取得停止に成功したので、フラグを下げる。
 				break;
 			} else if (iRetryStopAttempt >= 2) {
@@ -577,10 +603,11 @@ public:
 	}
 
 private:
+	// 08/24: フレーム"数" がわかる関数名だとなおいいと思います。変更しない引数は const にした方がいいと思います。
 	/**
 	 * @brief  取得するフレーム数をメンバ変数に格納する。
 	 */
-	void SetCaptureFrame(int iCaptureFrame) { m_iCaptureFrame = iCaptureFrame; }
+	void SetCaptureFrameCount(const int kiCaptureFrame) { m_iCaptureFrame = kiCaptureFrame; }
 
 	/**
 	 * @brief  画像バッファの解放をする
@@ -603,17 +630,18 @@ private:
 	 * @param[in]  kusSrcPort  : PC  のポート番号。
 	 * @return     true: 接続に成功, false: 接続に失敗
 	 * @details    Jumbo Packet を使用して接続する。 SDK の仕様で IP アドレスは char* 型で渡す必要がある。
+	 * @note       HBI 製 FPD と接続する。
 	 */
-	bool ConnectDevice(char* pcDestIpAddr, const unsigned short kusDestPORT, char* pcSrcIpAddr, const unsigned short kusSrcPort) {
+	bool ConnectDevice(char* pcDestIpAddr, const unsigned short kusDestPORT, char* pcSrcIpAddr, const unsigned short kusSrcPort) const {
 		LOG_BEGINF0(7, "MHyd| HBIDeviceCtrl::ConnectDevice()");
 		if (!IsInitialized()) { return false; }
-		int iResult = HBI_ConnectDetectorJumbo(m_hHBI, pcDestIpAddr, kusDestPORT, pcSrcIpAddr, kusSrcPort, 0);
-		if (!IsSuccess(iResult)) {
+		const int kiResult = HBI_ConnectDetectorJumbo(m_hHBI, pcDestIpAddr, kusDestPORT, pcSrcIpAddr, kusSrcPort, 0);
+		if (!IsSuccess(kiResult)) {
 			return false;
 		}
 		LOG_INPROGRESSF("ybDD| Connected to the device successfully.");
 		return true;
-	} // memo: 改行
+	}
 
 	/**
 	 * @brief       HBI の関数の処理が成功したか否かを判定する。
@@ -633,21 +661,24 @@ private:
 		}
 	}
 
-
+	// 08/24: 初期化されているのは SDK なのか。
+	//        -> SDK ではないので修正しました。
 	/**
-	 * @brief  SDK が初期化されているか判断する。
+	 * @brief  HBI DLL の実行ライブラリが初期化されているか判断する。
 	 * @return true: 初期化済み, false: 未初期化
 	 */
 	bool IsInitialized() const { return m_bIsInitialized; }
 
 	// memo: 保存していないと思います。
+	// 08/24: だいぶ良くなったと思いますが、目的が分かるような書き方だとさらに良いと思います。
+	//        コメント内容を修正しました。
 	/**
-	 * @brief     画像データをバッファにコピーする。
-	 * @param[in] pImageData: 画像データのポインタ。
-	 * @return    true: コピーに成功、または指定枚数に達したためコピーをスキップする
-	 *            false: コピーに失敗
-	 * @details   画像取得後、コールバック関数から呼び出される。
-     *            指定枚数に達するまで、取得した画像データを m_pImageBuffer にコピーする。
+	 * @brief   取得された 1 frame 分の画像データをバッファにコピーする。
+	 * @param   pImageData: 画像データのポインタ。
+	 * @return  true : バッファへのコピーに成功、または指定枚数に達したため、スキップされた。
+	 *          false: バッファへのコピーに失敗。
+	 * @details 画像取得後、コールバック関数から呼び出される。指定枚数に達するまで、取得された画像データを m_pImageBuffer にコピーする。
+     *          FPD の内部メモリは保存用のバッファではないため、取得された画像データは必ず外部のバッファにコピーする必要がある。
 	 */
 	bool CopyImageBuffer(const void* pImageData) {
 		LOG_BEGINF0(7, "KiH8| HBIDeviceCtrl::CopyImageBuffer()");
@@ -670,7 +701,6 @@ private:
 				pImageData,                                                   // コピー元のバッファの先頭アドレス
 				kiFramePixelCount * sizeof(uint16_t)                          // コピーするバイト数
 			);
-		// } // memo: この改行は意図的？ -> いいえ
 		} catch (const std::exception& eError) {
 			LOG_INPROGRESSF("RLIT| Exception occurred while copying image data: %s", eError.what());
 			return false;
@@ -679,18 +709,17 @@ private:
 
 		// memo: memcpy_s の戻り値を確認するように変更しました。
 		// memcpy_s は失敗時に 0 以外の値を返すので、 try-catch では判定できないらしいためです。
-		const errno_t iCopyResult = memcpy_s(
+		// 08/24: const error_t を反映した変数名にした方がいいと思います。
+		//        -> prefix に err を追加しました。 3dxd を見たら errno_t err = XXXXXX となっていました。
+		const errno_t kierrCopyResult = memcpy_s(
 			m_pImageBuffer + kszOffsetBuffSize,                          // コピー先のバッファの先頭アドレス
 			(m_szImageBufferSize - kszOffsetBuffSize) * sizeof(uint16_t),// バッファの残りサイズ
 			pImageData,                                                  // コピー元のバッファの先頭アドレス
 			kiFramePixelCount * sizeof(uint16_t)                         // コピーするバイト数
 		);
 
-		if (iCopyResult != 0) {
-			LOG_INPROGRESSF(
-				"Error: Failed to copy image data. memcpy_s returned %d.",
-				iCopyResult
-			);
+		if (kierrCopyResult != 0) {
+			LOG_INPROGRESSF("R1u1| Error: Failed to copy image data. memcpy_s returned %d.", kierrCopyResult);
 			return false;
 		}
 
@@ -745,7 +774,7 @@ private:
 			// SDK から画像データが送られてきた場合、peventParam1 に IMAGE_DATA_ST 構造体のポインタが渡される。
 			if (!pEventParam1) {
 				// pEventParam1 が null の場合、画像データが送られてこないため、ログに出力して処理を終了する。
-				LOG_INPROGRESSF("TCXe| Received null event parameter pointer.");
+				LOG_INPROGRESSF("Received null event parameter pointer.");
 				return;
 			}
 

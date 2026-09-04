@@ -43,11 +43,8 @@ struct CCaptureConfig {
         bool bIsFindCaptureConfig          = ApplyCaptureConfig(krstrProductCode);
         if (!strJsonText.empty() && bIsExtractCaptureConfig && bIsFindCaptureConfig) {
             // 成功した場合はログに出力する。
-            // memo: 「~の設定を読み込みました。（→パラメータを出力）」なら理解できるが、
-            // 「（全てのパラメータ）のコンフィグファイルを読みました」は書き方が適切なのか。
-            // 「読み込んだパラメータは～」では？
             LOG_INPROGRESSF("l7qt| Applied CaptureConfig for Product Code: %s", krstrProductCode.c_str());
-            LOG_INPROGRESSF("steJ|    Product Code       : %s"   , krstrProductCode.c_str());
+			LOG_INPROGRESSF("steJ|    Product Code       : %s", krstrProductCode.c_str()); // 08/24: ProductCode は↑で出しているようです。
             LOG_INPROGRESSF("bI88|    Gain Type          : %d"   , m_iGainType);
             LOG_INPROGRESSF("PPPL|    Exposure Time      : %d ms", m_imsExposureTime);
             LOG_INPROGRESSF("HiSV|    Capture Frame      : %d"   , m_iCaptureFrame);
@@ -222,7 +219,7 @@ struct CCaptureConfig {
     // memo: 「krstrProductCode と krstrProductCode が一致するオブジェクト」の意味が分からない。
     // 返り値は成功・失敗ではない？
     /**
-     * @brief     指定された ProductCode に対応するオブジェクトのテキストを取得し、メンバ変数に格納する。 // memo: スペースがない
+     * @brief     指定された ProductCode に対応するオブジェクトのテキストを取得し、メンバ変数に格納する。
      * @param[in] krstrTargetProductCode ProductCode
 	 * @details   m_vecstrProductCode と m_vecstrObjectText を走査し、 krstrTargetProductCode と一致する ProductCode を探す
      *            1. 一致する ProductCode が見つかった場合は、そのインデックスのオブジェクトのテキストを取得し、メンバ変数に格納する
@@ -240,18 +237,17 @@ struct CCaptureConfig {
             return false;
         }
 
-        // memo: ↓の変数は最初のチェック後に宣言した方がよいのでは？
-        nlohmann::json objCaptureParams; // memo: objCaptureParamsは"obj"なので統一した方が理解しやすい
-        bool bIsProductCodeMatched = false; // memo: bIsProductCodeMatched?(自信ないです)
-        bool bIsProductCodeEmpty   = false; // memo: bIsProductCodeEmpty?
+        nlohmann::json objCaptureParams;
+        bool bIsProductCodeMatched = false;
+        bool bIsProductCodeEmpty   = false;
 
 
         for (int iIndex = 0; iIndex < static_cast<int>(m_vecstrProductCode.size()); ++iIndex) {
             const std::string& krstrProductCode = m_vecstrProductCode[iIndex];
             const std::string& krstrObjectText  = m_vecstrObjectText[iIndex];
 
-            std::istringstream InputStream(krstrObjectText);
-            nlohmann::json objectText;
+            std::istringstream InputStream(krstrObjectText); // 08/24: 変数名
+            nlohmann::json objectText; // 08/24 prefix が obj の場合と object の場合があるため統一した方がいい。
             InputStream >> objectText;
 
             // JSONの読み取りに失敗した場合は、ログに出力して次のループに進む。
