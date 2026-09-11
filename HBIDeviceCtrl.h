@@ -20,23 +20,6 @@
 #include "../Array/Array4D.h"
 #include "../CSmartLog/SmartLog.h"
 
-// memo:
-// 全体的に
-// const をつけれるところはつけた方がいいと思います。
-// HBIType の中にある構造体の変数の prefix の多くが hbi になっているので、構造体を示す hbiXXX にした方がいいと思います。
-// SDK と書いているところが本当に SDK なのか気になります。SDK の初期化など。
-// 他に影響があって関数名に記載していない処理はなるべく避けた方がいいと思います。
-// 08/24: 1. チャットで話した通り、変数名の指摘 xxxYYY は誤りで、 xxxYyy(or xxx のみ) が正解でした。
-//        2. SDK は開発キットなので、まだコメントに誤りがあるように思います。
-//           例えば、 SDK のインスタンスというものが存在するのか。HBI_Init() を見るとライブラリの初期化と書いてあります。
-//           逆に、 HBI_GetSDKVerion() は API のバージョンを取得ではないかも。調べてみてください。
-//        3. param[in] を":"で区切ってるとこが有るけど、区切らなくていい。区切るんだったら統一した方がいい。
-//        4. const にできるところは const にした方がいいと思います。
-//           気をつけていると思うけれど抜けているところがあるので、再度チェックしてみてください。
-//        5. Capture を画像取得と説明すると混乱するので、撮影とかに言い換えた方がいいかもしれません。
-//           例えば画像を1回取得したら m_bIsCaptureFinished は true になりそうですが、指定枚数に達しないと true になりません。
-//           しかし、 m_bIsCaptureFinished のコメントは「画像取得が完了したかどうかを示すフラグ」
-
 // HBI で通信するデバイスの動作を制御するクラス。
 /**
  * @brief   HBI SDK を使用して、デバイスの接続、切断、画像取得などの操作を行うクラス。
@@ -48,8 +31,8 @@ private:
 
 	void*                    m_hHBI;               //!< HBI SDK インスタンスのハンドル。HBI SDK の関数を呼び出す際に使用する。
 	bool                     m_bIsInitialized;     //!< 初期化されているか示すフラグ
-	bool                     m_bIsCapturing;       //!< 画像取得中かどうかを示すフラグ
-	bool 				     m_bIsCaptureFinished; //!< 画像取得が完了したかどうかを示すフラグ
+	bool                     m_bIsCapturing;       //!< 撮影中かどうかを示すフラグ
+	bool 				     m_bIsCaptureFinished; //!< 撮影が完了したかどうかを示すフラグ
 	uint16_t*                m_pImageBuffer;       //!< 画像バッファの先頭アドレスを指すポインタ
 	size_t                   m_szImageBufferSize;  //!< 画像バッファのサイズ
 	int                      m_iFrameCounter;      //!< 取得したフレーム数をカウントする
@@ -140,9 +123,9 @@ public:
 	}
 
 	/**
-	 * @brief   SDK のバージョンを取得する。
-	 * @details SDK のバージョンは 64 bytes 以上で取得される。
-	 * @return  取得に成功した場合は SDK のバージョンの文字列、失敗した場合は空文字列。
+	 * @brief   HBI DLL のバージョンを取得する。
+	 * @details バージョン文字列の格納には 64 bytes 以上が必要。
+	 * @return  取得に成功した場合は HBI DLL のバージョンの文字列、失敗した場合は空文字列。
 	 */
 	std::string GetSDKVersion() const {
 		LOG_BEGINF0(7, "Clfj| HBIDeviceCtrl::GetSDKVersion()");
@@ -150,6 +133,7 @@ public:
 		// SDK バージョンの取得は 64 bytes 以上確保する必要がある。
 		char cSDKVersion[64] = { 0 };
 
+		// Verion は HBI の誤字
 		const int kiResult = HBI_GetSDKVerion(m_hHBI, cSDKVersion);
 		if (!IsSuccess(kiResult)) {
 			return "";
@@ -158,8 +142,6 @@ public:
 		return std::string(cSDKVersion);
 	}
 
-	// 08/24: SDK のバージョンではない？
-	// -> 修正しました。
 	/**
 	 * @brief   HBI SDK のバージョンをログに出力する。
 	 * @return  true: 取得に成功, false: 取得に失敗
@@ -184,10 +166,6 @@ public:
 		return true;
 	}
 
-	// 08/24: doxygen コメントを見直した方がいいかもしれません。
-	//        details の内容はこの関数を使う人にとって知っておいた方がいい？
-	//        細かいけど、PORT が大文字のまま。スペースが多い。「関数を実行する」がよくわからない。
-	//        -> details の内容を note に変更しました。
 	/**
 	 * @brief     デバイスに接続する。
 	 * @param[in] kpstrDestIpAddr デバイスの IP アドレス。
@@ -205,26 +183,22 @@ public:
 		const std::unique_ptr<char[]> kpcDestIpAddr = std::make_unique<char[]>(kszDestIpAddrBuffLen);
 		const std::unique_ptr<char[]> kpcSrcIpAddr  = std::make_unique<char[]>(kszSrcIpAddrBuffLen );
 		memcpy_s(kpcDestIpAddr.get(), kszDestIpAddrBuffLen, kpstrDestIpAddr->c_str(), kszDestIpAddrBuffLen);
-		memcpy_s(kpcSrcIpAddr.get() , kszSrcIpAddrBuffLen , kpstrSrcIpAddr ->c_str(), kszSrcIpAddrBuffLen);
-		
+		memcpy_s(kpcSrcIpAddr .get(), kszSrcIpAddrBuffLen , kpstrSrcIpAddr ->c_str(), kszSrcIpAddrBuffLen);
 		const bool kiResult = ConnectDevice(kpcDestIpAddr.get(), kusDestPort, kpcSrcIpAddr.get(), kusSrcPort);
-		
-		// 08/24: return iResult; でいいかも -> 修正しました。
+
 		return kiResult;
 	}
 
-	// 08/24: 関数名 Close に違和感を感じました。
-	// キャプチャ停止も処理に含むのであれば関数名にも含めた方がいいかと思います。
-	// 関数 Open() が無いのに Close() があるのは違和感があります。
-	// -> Shutdown() に変更しました。
-	//    キャプチャ停止は、なんとなくハンドル解放を安全に行うために含めているつもりでしたが、3dxdではそのようになっていないので消します。
-	//             -> 停止して終了、という処理をするのであれば、そのような関数を作ろうということでしょうか。
 	/**
-	 * @brief   キャプチャを停止し、画像バッファと HBI SDK インスタンスのハンドルを解放する。
-	 * @details キャプチャ中の場合は停止してから、画像バッファ、 m_hHBI が保持する HBI SDK インスタンスのハンドルを解放する。
+	 * @brief   画像バッファと HBI SDK インスタンスのハンドルを解放する。
+	 * @details 画像バッファ、 m_hHBI が保持する HBI SDK インスタンスのハンドルを解放する。
+	 * @return  true: 成功, false: 失敗
 	 */
 	bool Shutdown() {
 		LOG_BEGINF0(7, "gN20| HBIDeviceCtrl::Shutdown()");
+		// 画像取得中であれば、停止する。
+		if (m_bIsCapturing) { StopCapture(); }
+
 		// memo: 画像バッファを開放する処理が他にもあるため、Allocate~ 関数に対する関数 ReleaseImageBuffer() を作成した方がいいと思います。指摘がおかしければ教えてください。
 		// 画像バッファを解放する。
 		if (m_pImageBuffer != nullptr) {
@@ -233,12 +207,6 @@ public:
 		else {
 			LOG_INPROGRESSF("pEf3| Image buffer is already released.");
 		}
-		/*
-		if (m_pImageBuffer != nullptr) {
-			LOG_INPROGRESSF("9NVM| Releasing image buffer.");
-			m_pImageBuffer = nullptr;
-		}
-		*/
 
 		if (IsInitialized()) {
 			LOG_INPROGRESSF("OtZV| Release HBI handle.");
@@ -250,9 +218,6 @@ public:
 		return true;
 	}
 
-	// memo: これは SDK の初期化？
-	// 08/24 HBI_Init() を見ると"Initialize dynamic dll" と書いてあるので、ライブラリの初期化が適切かもしれません。
-	//       SDK は開発キットを示しているので、インスタンスというものがあるか不明です。
 	/**
 	 * @brief  HBI DLL を初期化し、 SDK ハンドルを取得する。
 	 * @return true: 成功, false: 失敗
@@ -277,7 +242,6 @@ public:
 		return m_bIsInitialized;
 	}
 
-	// memo: SDK とはツールキットではないですか？
 	/**
 	 * @brief   HBI ハンドルにイベントコールバック関数を登録する。
 	 * @details イベントが起こった時、HBI SDK が this ポインタを引数として UserHBICallback を呼び出されるようにする。
@@ -342,7 +306,6 @@ public:
 		// HBI_GetCurZoomRect の引数は、キャプチャ領域の左上の座標と幅、高さを格納する。
 		unsigned int uiCaptureAreaLeft, uiCaptureAreaTop, uiCaptureAreaWidth, uiCaptureAreaHeight;
 		{
-			// 08/24: 余分なスペース
 			const int kiResult = HBI_GetCurZoomRect(m_hHBI, &uiCaptureAreaLeft, &uiCaptureAreaTop, &uiCaptureAreaWidth, &uiCaptureAreaHeight);
 			if (!IsSuccess(kiResult)) {
 				return false;
@@ -376,27 +339,16 @@ public:
 	}
 
 	/**
-	 * @brief      キャプチャパラメータを設定する。
-	 * @param[in]  krcaptureconfig: 設定するキャプチャパラメータを保持する構造体。
-	 * @return     true: 設定に成功, false: 設定に失敗
-	 * @note       3030Z デュアル読出しのため、Width はフルエリア、Height は中心から等間隔にオフセットする必要がある。
-	 *             現在 3030Z の採用予定はない。
-	 *             2520Z は Height 方向のみオフセットが可能。
+	 * @brief          キャプチャパラメータを設定する。
+	 * @param[in] krcaptureconfig: 設定するキャプチャパラメータを保持する構造体。
+	 * @return         true: 設定に成功, false: 設定に失敗
+	 * @note           3030Z デュアル読出しのため、Width はフルエリア、Height は中心から等間隔にオフセットする必要がある。
+	 *                 現在 3030Z の採用予定はない。
+	 *                 2520Z は Height 方向のみオフセットが可能。
 	 */
 	bool SetCaptureParams(const struct CCaptureConfig& krcaptureconfig) {
 		LOG_BEGINF0(7, "t4Jj| HBIDeviceCtrl::SetCaptureParams()");
 		if (!IsInitialized()) { return false; }
-		// CMOS_ZOOM_RECT hbiCmos_Zoom_Rect; // 取得領域を格納する構造体
-		// 08/24: ROI を設定するところで宣言した方がいいのでは？
-		//        変数名は xxxYyy 形式にしてください。
-		//        そもそも CMOS じゃないのに FPD_ZOOM_RECT ではなく CMOS_ZOOM_RECT でいいのか。
-		//        -> 宣言の場所を変更しました。
-		//           インスタンス名を変更しました。 hbiCmos_Zoom_Rect -> hbicomszoomrectROI
-
-		// int iResult; // memo: コストが小さい iResult を使いまわす理由があれば教えてください。
-					 // -> 特にありません
-					 // 08/24: const にした方がいいと思います。
-					 // -> 修正しました。
 		{
 			// GainType
 			const int kiResult = HBI_MSetPGALevel(m_hHBI, krcaptureconfig.m_iGainType);
@@ -432,7 +384,7 @@ public:
 
 			if (kstrProductCode == "X-Panel3030zFDM") {
 				hbicomszoomrectROI.utop    = (krcaptureconfig.m_iOriginalHeight - krcaptureconfig.m_iCaptureAreaHeight) / 2;
-				hbicomszoomrectROI.ubottom = hbicomszoomrectROI.utop + krcaptureconfig.m_iCaptureAreaTop - 1;
+				hbicomszoomrectROI.ubottom = hbicomszoomrectROI.utop + krcaptureconfig.m_iCaptureAreaHeight - 1;
 				hbicomszoomrectROI.uleft   = 0;
 				hbicomszoomrectROI.uright  = 0;
 			} else {
@@ -468,14 +420,14 @@ public:
 	}
 
 	/**
-	 * @brief       取得するフレーム数、画像サイズに応じて画像バッファを確保する。
-	 * @param[in]   kiCaptureFrame: 取得するフレーム数。
-	 * @return      true: バッファの確保に成功, false: バッファの確保に失敗
-	 * @details     画像バッファは m_a4duiImageBuffer に確保される。バッファのサイズは m_iImageWidth * m_iImageHeight * iCaptureFrame。
+	 * @brief     取得するフレーム数、画像サイズに応じて画像バッファを確保する。
+	 * @param[in] kiCaptureFrame: 取得するフレーム数。
+	 * @return    true: バッファの確保に成功, false: バッファの確保に失敗
+	 * @details   画像バッファは m_a4duiImageBuffer に確保される。バッファのサイズは m_iImageWidth * m_iImageHeight * iCaptureFrame。
 	 */
 	bool AllocateImageBuffer(const int kiCaptureFrame) {
 		// 以下のいずれかの状態である場合はバッファを確保しない。
-		// HBI SDK の未初期化、デバイスの未接続、撮影中
+		// HBI ハンドルの未初期化、デバイスの未接続、撮影中
 		LOG_BEGINF0(7, "Hef4| HBIDeviceCtrl::AllocateImageBuffer()");
 		if (    !IsInitialized    ()  // HBI SDK の未初期化
 		     || !IsDeviceConnected()  // デバイスの未接続
@@ -513,9 +465,6 @@ public:
 		LOG_BEGINF0(7, "GI8J| HBIDeviceCtrl::UpdateImageProperties()");
 		if (!IsInitialized()) { return false; }
 
-		// 08/24 変数名
-		//       -> 変更しました。 hbiImage_Property -> hbiimageproperty
-		//          Image Property 以上の意味を持たないので、変数名は hbiimageproperty としました
 		// IMAGE_PROPERTY hbiImage_Property; // FPD プロパティの構造体
 		IMAGE_PROPERTY hbiimageproperty; // FPD プロパティの構造体
 		int iResult = HBI_GetImageProperty(m_hHBI, &hbiimageproperty);
@@ -542,14 +491,12 @@ public:
 	}
 
 	/**
-	 * @brief   画像取得を開始する。
-	 * @return  true: 取得の開始に成功, false: 取得の開始に失敗
+	 * @brief   撮影を開始する。
+	 * @return  true: 撮影の開始に成功, false: 撮影の開始に失敗
 	 * @details StopCapture() を呼び出すまで、画像取得は継続する。
 	 */
 	bool StartCapture() {
 		LOG_BEGINF0(7, "2Fbj| HBIDeviceCtrl::StartCapture()");
-		// 08/24: ↓1行だったら "//" でよさそう。hbiFpd_Aqc_Mode の名前を考え直す必要がある。特別な意味が無ければ使うところに書いた方がいいかも。
-		//                                    -> hbifpdaqcmodeAquisitionMode に変更しました。いい感じの名称が思いつきません。。。
 		// LIVE_ACQ_DEFAULT_TYPE は HBI SDK の複数枚撮影するモードで、取得した画像の先頭アドレスはコールバック関数で受け取る。
 		// FPD_AQC_MODE hbiFpd_Aqc_Mode;
 		FPD_AQC_MODE hbifpdaqcmodeAquisitionMode;
@@ -578,8 +525,8 @@ public:
 	}
 
 	/**
-	 * @brief   画像取得を停止する。
-	 * @details キャプチャ中の場合は、最大 3 回まで取得停止の指示を行う。
+	 * @brief   撮影を停止する。
+	 * @details キャプチャ中の場合は、最大 3 回まで画像取得停止の指示を行う。
 	 *          停止に成功した場合は、m_bIsCapturing フラグを下げる。
 	 * @return  true: 停止に成功, false: 停止に失敗
 	 */
@@ -603,7 +550,6 @@ public:
 	}
 
 private:
-	// 08/24: フレーム"数" がわかる関数名だとなおいいと思います。変更しない引数は const にした方がいいと思います。
 	/**
 	 * @brief  取得するフレーム数をメンバ変数に格納する。
 	 */
@@ -623,14 +569,14 @@ private:
 	}
 
 	/**
-	 * @brief      デバイスに接続する。
-	 * @param[in]  pcDestIPAddr: FPD の IP アドレス。
-	 * @param[in]  kusDestPort : FPD のポート番号。
-	 * @param[in]  pcSrcIPAddr : PC  の IP アドレス。
-	 * @param[in]  kusSrcPort  : PC  のポート番号。
-	 * @return     true: 接続に成功, false: 接続に失敗
-	 * @details    Jumbo Packet を使用して接続する。 SDK の仕様で IP アドレスは char* 型で渡す必要がある。
-	 * @note       HBI 製 FPD と接続する。
+	 * @brief     デバイスに接続する。
+	 * @param[in] pcDestIPAddr: FPD の IP アドレス。
+	 * @param[in] kusDestPort : FPD のポート番号。
+	 * @param[in] pcSrcIPAddr : PC  の IP アドレス。
+	 * @param[in] kusSrcPort  : PC  のポート番号。
+	 * @return    true: 接続に成功, false: 接続に失敗
+	 * @details   Jumbo Packet を使用して接続する。 SDK の仕様で IP アドレスは char* 型で渡す必要がある。
+	 * @note      HBI 製 FPD と接続する。
 	 */
 	bool ConnectDevice(char* pcDestIpAddr, const unsigned short kusDestPORT, char* pcSrcIpAddr, const unsigned short kusSrcPort) const {
 		LOG_BEGINF0(7, "MHyd| HBIDeviceCtrl::ConnectDevice()");
@@ -661,24 +607,19 @@ private:
 		}
 	}
 
-	// 08/24: 初期化されているのは SDK なのか。
-	//        -> SDK ではないので修正しました。
 	/**
 	 * @brief  HBI DLL の実行ライブラリが初期化されているか判断する。
 	 * @return true: 初期化済み, false: 未初期化
 	 */
 	bool IsInitialized() const { return m_bIsInitialized; }
 
-	// memo: 保存していないと思います。
-	// 08/24: だいぶ良くなったと思いますが、目的が分かるような書き方だとさらに良いと思います。
-	//        コメント内容を修正しました。
 	/**
-	 * @brief   取得された 1 frame 分の画像データをバッファにコピーする。
-	 * @param   pImageData: 画像データのポインタ。
-	 * @return  true : バッファへのコピーに成功、または指定枚数に達したため、スキップされた。
-	 *          false: バッファへのコピーに失敗。
-	 * @details 画像取得後、コールバック関数から呼び出される。指定枚数に達するまで、取得された画像データを m_pImageBuffer にコピーする。
-     *          FPD の内部メモリは保存用のバッファではないため、取得された画像データは必ず外部のバッファにコピーする必要がある。
+	 * @brief     取得された 1 frame 分の画像データをバッファにコピーする。
+	 * @param[in] pImageData: 画像データのポインタ。
+	 * @return    true : バッファへのコピーに成功、または指定枚数に達したため、スキップされた。
+	 *            false: バッファへのコピーに失敗。
+	 * @details   画像取得後、コールバック関数から呼び出される。指定枚数に達するまで、取得された画像データを m_pImageBuffer にコピーする。
+     *            FPD の内部メモリは保存用のバッファではないため、取得された画像データは必ず外部のバッファにコピーする必要がある。
 	 */
 	bool CopyImageBuffer(const void* pImageData) {
 		LOG_BEGINF0(7, "KiH8| HBIDeviceCtrl::CopyImageBuffer()");
@@ -693,24 +634,6 @@ private:
 		const int    kiFramePixelCount = m_iImageWidth * m_iImageHeight;
 		const size_t kszOffsetBuffSize = static_cast<size_t>(m_iFrameCounter * kiFramePixelCount);
 
-		/*
-		try {
-			memcpy_s(
-				m_pImageBuffer + kszOffsetBuffSize,                           // コピー先のバッファの先頭アドレス
-				(m_szImageBufferSize - kszOffsetBuffSize) * sizeof(uint16_t), // バッファの残りサイズ
-				pImageData,                                                   // コピー元のバッファの先頭アドレス
-				kiFramePixelCount * sizeof(uint16_t)                          // コピーするバイト数
-			);
-		} catch (const std::exception& eError) {
-			LOG_INPROGRESSF("RLIT| Exception occurred while copying image data: %s", eError.what());
-			return false;
-		}
-		*/
-
-		// memo: memcpy_s の戻り値を確認するように変更しました。
-		// memcpy_s は失敗時に 0 以外の値を返すので、 try-catch では判定できないらしいためです。
-		// 08/24: const error_t を反映した変数名にした方がいいと思います。
-		//        -> prefix に err を追加しました。 3dxd を見たら errno_t err = XXXXXX となっていました。
 		const errno_t kierrCopyResult = memcpy_s(
 			m_pImageBuffer + kszOffsetBuffSize,                          // コピー先のバッファの先頭アドレス
 			(m_szImageBufferSize - kszOffsetBuffSize) * sizeof(uint16_t),// バッファの残りサイズ
@@ -737,40 +660,40 @@ private:
 
 	/**
 	 * @brief     HBI SDK のイベントコールバック関数。HBI SDK がイベントを検知した時に呼び出される。
-	 * @param[in] pContext       コールバック登録時に SDK へ渡したポインタ。
-	 * @param[in] iFpdId         デバイス ID
-	 * @param[in] ucEventId      イベント ID
-	 * @param[in] pEventParam1   イベントに関するパラメータ
-	 * @param[in] iEventParam2   イベントに関するパラメータ
-	 * @param[in] iEventParam3   イベントに関するパラメータ
-	 * @param[in] iEventParam4   イベントに関するパラメータ
+	 * @param[in] pContext      コールバック登録時に SDK へ渡したポインタ。
+	 * @param[in] kiFpdId       デバイス ID
+	 * @param[in] kucEventId    イベント ID
+	 * @param[in] pEventParam1  イベントに関するパラメータ
+	 * @param[in] kiEventParam2 イベントに関するパラメータ
+	 * @param[in] kiEventParam3 イベントに関するパラメータ
+	 * @param[in] kiEventParam4 イベントに関するパラメータ
 	 * @details   HBI SDK の仕様上、コールバック関数は static メソッドかつ int 型の関数である必要がある。
 	 */
-	static int UserHBICallback(void* pContext, int iFpdId, unsigned char ucEventId, void* pEventParam1, int iEventParam2, int iEventParam3, int iEventParam4) {
+	static int UserHBICallback(void* pContext, const int kiFpdId, unsigned char kucEventId, void* pEventParam1, const int kiEventParam2, const int kiEventParam3, const int kiEventParam4) {
 		// コールバック登録時に SDK へ渡したポインタを CHBIDeviceCtrl クラスのオブジェクトのポインタとしてキャストする。
 		CHBIDeviceCtrl* pCHBIDeviceCtrl = static_cast<CHBIDeviceCtrl*>(pContext);
 		if (!pCHBIDeviceCtrl) { return 0; }
-		pCHBIDeviceCtrl->OnHBICallback(iFpdId, ucEventId, pEventParam1, iEventParam2, iEventParam3, iEventParam4);
+		pCHBIDeviceCtrl->OnHBICallback(kiFpdId, kucEventId, pEventParam1, kiEventParam2, kiEventParam3, kiEventParam4);
 		return 1;
 	}
 
 	/**
 	 * @brief     HBI SDK のイベントコールバック関数から呼び出される実装関数。イベントに応じて処理を行う。
-	 * @param[in] iFpdId         イベントが発生したデバイス ID
-	 * @param[in] ucEventId      発生したイベント ID
+	 * @param[in] kiFpdId         イベントが発生したデバイス ID
+	 * @param[in] kucEventId      発生したイベント ID
 	 * @param[in] pEventParam1   イベントに関するパラメータ
-	 * @param[in] iEventParam2   イベントに関するパラメータ
-	 * @param[in] iEventParam3   イベントに関するパラメータ
-	 * @param[in] iEventParam4   イベントに関するパラメータ
+	 * @param[in] kiEventParam2   イベントに関するパラメータ
+	 * @param[in] kiEventParam3   イベントに関するパラメータ
+	 * @param[in] kiEventParam4   イベントに関するパラメータ
 	 */
-	void OnHBICallback(int iFpdId, unsigned char ucEventId, void* pEventParam1, int iEventParam2, int iEventParam3, int iEventParam4) {
+	void OnHBICallback(const int kiFpdId, const unsigned char kucEventId, void* pEventParam1, const int kiEventParam2, const int kiEventParam3, const int kiEventParam4) {
 		LOG_BEGINF0(2, "6P6w| CHBIDeviceCtrl::OnHBICallback()");
 		// peventParam1 以外は使っていないが、 SDK の仕様上、引数として受け取る必要がある。
-		(void)iFpdId;
-		(void)iEventParam2;
-		(void)iEventParam3;
-		(void)iEventParam4;
-		if (ucEventId == ECALLBACK_TYPE_MULTIPLE_IMAGE) {
+		(void)kiFpdId;
+		(void)kiEventParam2;
+		(void)kiEventParam3;
+		(void)kiEventParam4;
+		if (kucEventId == ECALLBACK_TYPE_MULTIPLE_IMAGE) {
 			// SDK から画像データが送られてきた場合、peventParam1 に IMAGE_DATA_ST 構造体のポインタが渡される。
 			if (!pEventParam1) {
 				// pEventParam1 が null の場合、画像データが送られてこないため、ログに出力して処理を終了する。

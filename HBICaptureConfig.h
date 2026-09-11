@@ -216,8 +216,6 @@ struct CCaptureConfig {
         return true;
     }
 
-    // memo: 「krstrProductCode と krstrProductCode が一致するオブジェクト」の意味が分からない。
-    // 返り値は成功・失敗ではない？
     /**
      * @brief     指定された ProductCode に対応するオブジェクトのテキストを取得し、メンバ変数に格納する。
      * @param[in] krstrTargetProductCode ProductCode
@@ -229,8 +227,6 @@ struct CCaptureConfig {
     bool ApplyCaptureConfig(const std::string& krstrTargetProductCode) {
         LOG_BEGINF0(7, "Dgw4| CaptureConfig::ApplyCaptureConfig()");
 
-        // memo: vec~s のsは冗長では？どこかで指摘していたと思うので、他もチェックしてください。
-        // ~s を消しました。 vec が複数形の意味として扱っていませんでした。
         // ProductCode とオブジェクトのテキストが空の場合は、ログに出力して false を返す。
         if (m_vecstrProductCode.empty() || m_vecstrObjectText.empty()) {
             LOG_INPROGRESSF("kZQH| No ProductCodes or ObjectTexts found in JSON.");
@@ -272,9 +268,6 @@ struct CCaptureConfig {
             }
         }
 
-		// memo: config file に krstrTargetProductCode が存在しない場合～
-        // !(bIsProductCodeMatched || bIsProductCodeEmpty)
-        // krstrTargetProductCode に一致する ProductCode が見つからなかった場合、かつ空の設定が見つからなかった場合は、ログに出力して false を返す。
         if (!(bIsProductCodeMatched || bIsProductCodeEmpty)) {
             LOG_INPROGRESSF("dBqE| No matching ProductCode in JSON. ProductCode=%s", krstrTargetProductCode.c_str());
             return false;
