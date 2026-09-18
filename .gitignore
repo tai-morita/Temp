@@ -65,7 +65,7 @@ doxygen
 *.pc
 *.pch
 *.pdb
-*.pdf
+*.pd_f
 *.pl
 *.properties
 *.props
